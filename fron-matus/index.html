@@ -1,0 +1,110 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monitor de Cámaras</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="header">
+    <div>
+        <h1>📹 Monitor de Cámaras</h1>
+        <p>Monitoreo de cámaras IP</p>
+    </div>
+
+    <div class="connection">
+        <span id="connectionDot"></span>
+        <span id="connectionText">Conectando...</span>
+    </div>
+</header>
+
+<main class="container">
+
+    <section class="company-section">
+        <label for="empresaSelect">Empresa</label>
+
+        <select id="empresaSelect">
+            <option value="">Selecciona una empresa</option>
+        </select>
+    </section>
+
+    <section class="stats">
+
+        <div class="stat-card">
+            <span class="stat-title">Total</span>
+            <strong id="totalCamaras">0</strong>
+        </div>
+
+        <div class="stat-card active">
+            <span class="stat-title">Activas</span>
+            <strong id="camarasActivas">0</strong>
+        </div>
+
+        <div class="stat-card inactive">
+            <span class="stat-title">Inactivas</span>
+            <strong id="camarasInactivas">0</strong>
+        </div>
+
+    </section>
+
+    <section class="cameras-section">
+
+        <div class="section-header">
+            <div>
+                <h2>Cámaras</h2>
+                <p id="lastUpdate">Sin actualización</p>
+            </div>
+
+            <button id="refreshButton">
+                ↻ Actualizar
+            </button>
+        </div>
+
+        <div id="cameraList" class="camera-list">
+
+            <div class="empty">
+                Selecciona una empresa para ver sus cámaras.
+            </div>
+
+        </div>
+
+    </section>
+
+</main>
+
+<!-- Modal -->
+
+<div id="modal" class="modal hidden">
+
+    <div class="modal-content">
+
+        <div class="modal-header">
+            <h2 id="modalTitle">Cámara</h2>
+            <button id="closeModal">×</button>
+        </div>
+
+        <div id="cameraDetail"></div>
+
+        <div class="history-section">
+
+            <h3>Historial de estados</h3>
+
+            <div id="historyList">
+                Cargando...
+            </div>
+
+        </div>
+
+    </div>
+
+</div>
+
+<script src="app.js"></script>
+
+</body>
+</html>
+

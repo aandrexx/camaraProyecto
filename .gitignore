@@ -1,0 +1,19 @@
+# IntelliJ
+.idea/
+*.iml
+
+# Maven / Spring
+estadoCamaras/target/
+
+# Logs
+*.log
+
+# Variables de entorno
+.env
+
+# Configuración local
+application-local.properties
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
