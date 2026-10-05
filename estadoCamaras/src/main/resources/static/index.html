@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f5f7fb">
+    <title>EstadoCámaras | Monitoreo</title>
+    <link rel="stylesheet" href="/css/styles.css">
+    <script src="/js/app.js" defer></script>
+</head>
+<body>
+<div class="app-shell">
+    <aside class="sidebar">
+        <a class="brand" href="/" aria-label="EstadoCámaras inicio">
+            <span class="brand-mark">EC</span>
+            <span class="brand-copy">
+                <strong>EstadoCámaras</strong>
+                <small>Centro de monitoreo</small>
+            </span>
+        </a>
+        <div class="sidebar-label">ESPACIO DE TRABAJO</div>
+        <div class="workspace-card">
+            <span class="workspace-dot"></span>
+            <span><strong>Operaciones</strong><small>Red de videovigilancia</small></span>
+        </div>
+        <div class="sidebar-label navigation-label">MONITOREO</div>
+        <a class="nav-link active" href="#dashboard"><span class="nav-icon">▦</span> Panel general</a>
+        <a class="nav-link" href="#cameras"><span class="nav-icon">◉</span> Cámaras <span id="nav-camera-count" class="nav-count">0</span></a>
+        <div class="sidebar-bottom">
+            <div class="connection-indicator"><span class="connection-dot"></span><span id="connection-label">Conectando...</span></div>
+            <div class="sidebar-footnote">EstadoCámaras <span>•</span> Monitoreo IP / MAC</div>
+        </div>
+    </aside>
+
+    <main class="main-content" id="dashboard">
+        <header class="topbar">
+            <div class="breadcrumb">Monitoreo <span>/</span> <strong>Panel general</strong></div>
+            <div class="topbar-actions">
+                <span class="last-updated" id="last-updated">Sin actualizar</span>
+                <button class="button button-secondary" id="refresh-button" type="button">
+                    <span class="refresh-icon">↻</span> Actualizar
+                </button>
+                <button class="button button-primary" id="add-camera-button" type="button">＋ Nueva cámara</button>
+            </div>
+        </header>
+
+        <section class="page-heading">
+            <div>
+                <p class="eyebrow">VISTA GENERAL</p>
+                <h1>Monitoreo de cámaras</h1>
+                <p class="page-description">Estado de conexión e identificación de dispositivos en tu red.</p>
+            </div>
+            <label class="company-picker">
+                <span>Empresa</span>
+                <select id="company-select" aria-label="Filtrar por empresa">
+                    <option value="">Cargando empresas...</option>
+                </select>
+                <button class="icon-button" id="add-company-button" type="button" title="Agregar empresa" aria-label="Agregar empresa">＋</button>
+            </label>
+        </section>
+
+        <div id="error-banner" class="error-banner" role="alert" hidden></div>
+
+        <section class="stats-grid" aria-label="Resumen de cámaras">
+            <article class="stat-card">
+                <div class="stat-top"><span class="stat-label">Total de cámaras</span><span class="stat-icon icon-neutral">▦</span></div>
+                <div class="stat-value" id="total-count">—</div>
+                <div class="stat-caption">Registradas en la empresa</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-top"><span class="stat-label">Activas</span><span class="stat-icon icon-green">✓</span></div>
+                <div class="stat-value" id="active-count">—</div>
+                <div class="stat-caption"><span class="caption-dot green-dot"></span> Conectadas ahora</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-top"><span class="stat-label">Inactivas</span><span class="stat-icon icon-red">!</span></div>
+                <div class="stat-value" id="inactive-count">—</div>
+                <div class="stat-caption"><span class="caption-dot red-dot"></span> Sin conexión</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-top"><span class="stat-label">Alertas de MAC</span><span class="stat-icon icon-amber">⌁</span></div>
+                <div class="stat-value" id="mac-alert-count">—</div>
+                <div class="stat-caption"><span class="caption-dot amber-dot"></span> Identidad no coincide</div>
+            </article>
+            <article class="stat-card">
+                <div class="stat-top"><span class="stat-label">IPs duplicadas</span><span class="stat-icon icon-amber">↔</span></div>
+                <div class="stat-value" id="duplicate-ip-count">—</div>
+                <div class="stat-caption"><span class="caption-dot amber-dot"></span> Direcciones repetidas</div>
+            </article>
+        </section>
+
+        <section class="camera-section" id="cameras">
+            <div class="section-heading">
+                <div>
+                    <h2>Dispositivos</h2>
+                    <p>Consulta el estado y la identidad de cada cámara.</p>
+                </div>
+                <label class="search-box">
+                    <span aria-hidden="true">⌕</span>
+                    <input id="search-input" type="search" placeholder="Buscar por nombre, IP o ubicación" aria-label="Buscar cámaras">
+                </label>
+            </div>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>CÁMARA</th>
+                        <th>DIRECCIÓN IP</th>
+                        <th>ESTADO</th>
+                        <th>MAC ESPERADA</th>
+                        <th>MAC DETECTADA</th>
+                        <th>ÚLTIMA REVISIÓN</th>
+                        <th><span class="sr-only">Acciones</span></th>
+                    </tr>
+                    </thead>
+                    <tbody id="camera-table-body">
+                    <tr><td colspan="7" class="loading-cell"><span class="loading-spinner"></span> Cargando dispositivos...</td></tr>
+                    </tbody>
+                </table>
+                <div id="empty-state" class="empty-state" hidden>
+                    <div class="empty-illustration">◉</div>
+                    <h3 id="empty-title">Todavía no hay cámaras</h3>
+                    <p id="empty-description">Registra una cámara para comenzar a monitorear la red.</p>
+                    <button class="button button-primary" id="empty-add-camera" type="button">＋ Agregar cámara</button>
+                </div>
+            </div>
+            <footer class="table-footer"><span id="table-result-count">0 dispositivos</span><span>La verificación se actualiza automáticamente desde el servidor.</span></footer>
+        </section>
+        <footer class="page-footer">EstadoCámaras <span>•</span> Panel de monitoreo de red</footer>
+    </main>
+</div>
+
+<dialog class="modal" id="camera-dialog">
+    <form id="camera-form" class="modal-form">
+        <div class="modal-heading">
+            <div><p class="eyebrow">CONFIGURACIÓN</p><h2 id="camera-dialog-title">Nueva cámara</h2></div>
+            <button class="icon-button close-dialog" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <p class="modal-description">Completa los datos de conexión y la MAC autorizada del dispositivo.</p>
+        <div class="form-grid">
+            <label class="form-field full-width">Nombre de la cámara <span class="required">*</span>
+                <input name="nombre" type="text" maxlength="120" placeholder="Ej. Entrada principal" required>
+            </label>
+            <label class="form-field">Dirección IP <span class="required">*</span>
+                <input name="ip" type="text" inputmode="decimal" placeholder="192.168.1.20" required>
+            </label>
+            <label class="form-field">Puerto TCP
+                <input name="puerto" type="number" min="1" max="65535" placeholder="80">
+            </label>
+            <label class="form-field full-width">Ubicación
+                <input name="ubicacion" type="text" maxlength="160" placeholder="Ej. Pasillo norte">
+            </label>
+            <label class="form-field full-width">MAC esperada
+                <input name="macEsperada" type="text" placeholder="00:1A:2B:3C:4D:5E">
+                <small>Opcional. Acepta formatos con dos puntos o guiones.</small>
+            </label>
+        </div>
+        <div id="camera-form-error" class="form-error" role="alert" hidden></div>
+        <div class="modal-actions">
+            <button class="button button-secondary close-dialog" type="button">Cancelar</button>
+            <button class="button button-primary" type="submit" id="save-camera-button">Guardar cámara</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="modal compact-modal" id="company-dialog">
+    <form id="company-form" class="modal-form">
+        <div class="modal-heading">
+            <div><p class="eyebrow">ESPACIO DE TRABAJO</p><h2>Agregar empresa</h2></div>
+            <button class="icon-button close-dialog" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <p class="modal-description">Crea una empresa para organizar sus cámaras.</p>
+        <label class="form-field">Nombre <span class="required">*</span><input name="nombre" type="text" maxlength="160" required></label>
+        <label class="form-field">Dirección<input name="direccion" type="text" maxlength="255"></label>
+        <label class="form-field">Contacto técnico<input name="contactoTecnico" type="text" maxlength="160"></label>
+        <div id="company-form-error" class="form-error" role="alert" hidden></div>
+        <div class="modal-actions">
+            <button class="button button-secondary close-dialog" type="button">Cancelar</button>
+            <button class="button button-primary" type="submit">Guardar empresa</button>
+        </div>
+    </form>
+</dialog>
+
+<dialog class="modal history-modal" id="history-dialog">
+    <div class="modal-form">
+        <div class="modal-heading">
+            <div><p class="eyebrow">ACTIVIDAD</p><h2 id="history-title">Historial de cámara</h2></div>
+            <button class="icon-button close-dialog" type="button" aria-label="Cerrar">×</button>
+        </div>
+        <div id="history-content" class="history-content"><span class="loading-spinner"></span> Cargando historial...</div>
+    </div>
+</dialog>
+</body>
+</html>

@@ -13,6 +13,7 @@ public record CamaraResponseDTO(
         Integer puerto,
         String ubicacion,
         String macEsperada,
+        String ultimaMacDetectada,
         Boolean macCoincide,
         EstadoCamara estado,
         LocalDateTime ultimaVerificacion,

@@ -35,6 +35,7 @@ public class CamaraMapper {
                 .puerto(camara.getPuerto())
                 .ubicacion(camara.getUbicacion())
                 .macEsperada(camara.getMacEsperada())
+                .ultimaMacDetectada(camara.getUltimaMacDetectada())
                 .estado(camara.getEstado())
                 .ultimaVerificacion(camara.getUltimaVerificacion())
                 .empresaId(camara.getEmpresa().getId())
