@@ -5,6 +5,7 @@ public record CamaraRequestDTO(
         String ip,
         Integer puerto,
         String ubicacion,
+        String macEsperada,
         Long empresaId
 ) {
 }

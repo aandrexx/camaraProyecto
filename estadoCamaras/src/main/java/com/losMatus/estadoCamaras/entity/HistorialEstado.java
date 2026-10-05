@@ -1,6 +1,7 @@
 package com.losMatus.estadoCamaras.entity;
 
 import com.losMatus.estadoCamaras.enums.EstadoCamara;
+import com.losMatus.estadoCamaras.enums.TipoEvento;
 import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -28,6 +29,9 @@ public class HistorialEstado {
 
     @Enumerated(EnumType.STRING)
     private EstadoCamara estadoNuevo;
+
+    @Enumerated(EnumType.STRING)
+    private TipoEvento tipoEvento;
 
     private LocalDateTime fechaCambio;
 

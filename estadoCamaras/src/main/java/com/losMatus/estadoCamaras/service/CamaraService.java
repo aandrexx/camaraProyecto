@@ -27,13 +27,14 @@ public class CamaraService {
     private final HistorialEstadoRepository historialEstadoRepository;
     private final HistorialEstadoMapper historialEstadoMapper;
 
-    public List<CamaraResponseDTO> listarPorEmpresa(Long empresaId){
+    public List<CamaraResponseDTO> listarPorEmpresa(Long empresaId) {
         return camaraRepository.findByEmpresaId(empresaId)
                 .stream()
-                .map(camara -> camaraMapper.toDTO(camara))
+                .map(this::toDTOConMacCoincide)
                 .toList();
     }
-    public CamaraResponseDTO save (CamaraRequestDTO camaraRequestDTO){
+
+    public CamaraResponseDTO save(CamaraRequestDTO camaraRequestDTO) {
         Empresa empresa = empresaRepository.findById(camaraRequestDTO.empresaId())
                 .orElseThrow(() -> new RuntimeException("Empresa no encontrada"));
         Camara camara = camaraMapper.toEntity(camaraRequestDTO);
@@ -43,10 +44,39 @@ public class CamaraService {
         Camara guardada = camaraRepository.save(camara);
         return camaraMapper.toDTO(guardada);
     }
-    public List<HistorialEstadoResponseDTO> historialDeCamara(Long camaraId){
+
+    public List<HistorialEstadoResponseDTO> historialDeCamara(Long camaraId) {
         return historialEstadoRepository.findByCamaraIdOrderByFechaCambioDesc(camaraId)
                 .stream()
                 .map(historialEstado -> historialEstadoMapper.toDTO(historialEstado))
                 .toList();
+    }
+
+    private CamaraResponseDTO toDTOConMacCoincide(Camara camara) {
+        CamaraResponseDTO dto = camaraMapper.toDTO(camara);
+        return dto.toBuilder()
+                .macCoincide(calcularMacCoincide(camara))
+                .build();
+    }
+
+    private Boolean calcularMacCoincide(Camara camara) {
+        if (camara.getMacEsperada() == null || camara.getUltimaMacDetectada() == null) {
+            return null;
+        }
+        return camara.getUltimaMacDetectada().equalsIgnoreCase(camara.getMacEsperada());
+    }
+
+    public CamaraResponseDTO actualizar(Long id, CamaraRequestDTO dto) {
+        Camara camara = camaraRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Cámara no encontrada"));
+
+        camara.setNombre(dto.nombre());
+        camara.setIp(dto.ip());
+        camara.setPuerto(dto.puerto());
+        camara.setUbicacion(dto.ubicacion());
+        camara.setMacEsperada(dto.macEsperada());
+
+        Camara actualizada = camaraRepository.save(camara);
+        return camaraMapper.toDTO(actualizada);
     }
 }

@@ -35,4 +35,8 @@ public class CamaraController {
     public List<HistorialEstadoResponseDTO> historialDeCamara(@PathVariable Long camaraId){
         return camaraService.historialDeCamara(camaraId);
     }
+    @PutMapping("/{id}")
+    public CamaraResponseDTO actualizar(@PathVariable Long id, @RequestBody CamaraRequestDTO dto) {
+        return camaraService.actualizar(id, dto);
+    }
 }
