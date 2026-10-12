@@ -41,6 +41,8 @@ public class CamaraService {
         camara.setEmpresa(empresa);
         camara.setEstado(EstadoCamara.DESCONOCIDO);
 
+        camara.setMacEsperada(normalizarMac(camaraRequestDTO.macEsperada()));
+
         Camara guardada = camaraRepository.save(camara);
         return camaraMapper.toDTO(guardada);
     }
@@ -74,9 +76,12 @@ public class CamaraService {
         camara.setIp(dto.ip());
         camara.setPuerto(dto.puerto());
         camara.setUbicacion(dto.ubicacion());
-        camara.setMacEsperada(dto.macEsperada());
+        camara.setMacEsperada(normalizarMac(dto.macEsperada()));
 
         Camara actualizada = camaraRepository.save(camara);
         return camaraMapper.toDTO(actualizada);
+    }
+    private String normalizarMac(String mac) {
+        return (mac == null || mac.isBlank()) ? null : MacResolver.normalizar(mac.trim());
     }
 }

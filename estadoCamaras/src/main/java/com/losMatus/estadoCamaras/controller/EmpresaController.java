@@ -6,6 +6,7 @@ import com.losMatus.estadoCamaras.entity.Empresa;
 import com.losMatus.estadoCamaras.mapper.EmpresaMapper;
 import com.losMatus.estadoCamaras.repository.EmpresaRepository;
 import com.losMatus.estadoCamaras.service.EmpresaService;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
@@ -23,7 +24,7 @@ public class EmpresaController {
         return empresaService.findAll();
     }
     @PostMapping
-    public EmpresaResponseDTO save(@RequestBody EmpresaRequestDTO empresaRequestDTO){
+    public EmpresaResponseDTO save(@Valid @RequestBody EmpresaRequestDTO empresaRequestDTO){
         return empresaService.save(empresaRequestDTO);
 
     }

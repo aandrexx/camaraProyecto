@@ -3,7 +3,6 @@ package com.losMatus.estadoCamaras.entity;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.losMatus.estadoCamaras.enums.EstadoCamara;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Pattern;
 import lombok.*;
 
 import java.time.LocalDateTime;
@@ -31,11 +30,13 @@ public class Camara {
     private String ubicacion; //pasillo o recepcion
 
     @Column(name = "mac_esperada")
-    @Pattern(regexp = "^([0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}$", message = "Formato de MAC inválido")
     private String macEsperada;
 
     @Column(name = "ultima_mac_detectada")
     private String ultimaMacDetectada;
+
+    @Column(name = "fallos_consecutivos")
+    private Integer fallosConsecutivos;
 
     @Enumerated(EnumType.STRING)
     private EstadoCamara estado;

@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class MonitoreoServiceTest{
-    private final MonitoreoService monitoreoService = new MonitoreoService(null, null);
+    private final MonitoreoService monitoreoService = new MonitoreoService(null, null, null);
     // null porque este test no necesita los repositorios, solo probamos un método puro
 
     @Test

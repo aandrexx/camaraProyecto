@@ -6,6 +6,7 @@ import com.losMatus.estadoCamaras.enums.EstadoCamara;
 import com.losMatus.estadoCamaras.enums.TipoEvento;
 import com.losMatus.estadoCamaras.repository.CamaraRepository;
 import com.losMatus.estadoCamaras.repository.HistorialEstadoRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.io.BufferedReader;
@@ -15,16 +16,24 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.time.LocalDateTime;
+import java.util.Optional;
 
+@Slf4j
 @Service
 public class MonitoreoService {
 
+    private static final int UMBRAL_FALLOS = 3;
+
     private final CamaraRepository camaraRepository;
     private final HistorialEstadoRepository historialEstadoRepository;
+    private final MacResolver macResolver;
 
-    public MonitoreoService(CamaraRepository camaraRepository, HistorialEstadoRepository historialEstadoRepository) {
+    public MonitoreoService(CamaraRepository camaraRepository,
+                            HistorialEstadoRepository historialEstadoRepository,
+                            MacResolver macResolver) {
         this.camaraRepository = camaraRepository;
         this.historialEstadoRepository = historialEstadoRepository;
+        this.macResolver = macResolver;
     }
 
     //Simplificamos a solo trabajar con TCP
@@ -37,47 +46,57 @@ public class MonitoreoService {
         }
     }
 
-    //NUEVO METODO PARA LA MAC
-    public String obtenerMacPorIp(String ip) {
-        try {
-            Process proceso = new ProcessBuilder("arp", "-a", ip).start();
-            BufferedReader reader = new BufferedReader(
-                    new InputStreamReader(proceso.getInputStream()));
-
-            String linea;
-            while ((linea = reader.readLine()) != null) {
-                if (linea.trim().startsWith(ip)) {
-                    // la línea suele verse así:
-                    // 172.20.0.10          00-1a-2b-3c-4d-5e     dinámico
-                    String[] partes = linea.trim().split("\\s+");
-                    if (partes.length >= 2) {
-                        return partes[1].replace("-", ":").toUpperCase();
-                    }
-                }
-            }
-        } catch (IOException e) {
-            return null;
-        }
-        return null;
-    }
-
-    //ACTUALIZAMOS EL METODO PARA GUARDAR LA MAC DETECTADA
     public void actualizarEstadoCamara(Camara camara) {
+        String ip = camara.getIp();
+        Integer puerto = camara.getPuerto();
+        if (ip == null || ip.isBlank() || puerto == null || puerto < 1 || puerto > 65535) {
+            log.warn("Cámara id={} con ip/puerto inválido (ip={}, puerto={}), se omite el chequeo",
+                    camara.getId(), ip, puerto);
+            return;
+        }
+
         EstadoCamara estadoAnterior = camara.getEstado();
         boolean macCoincidiaAntes = calcularMacCoincide(camara); // ANTES de actualizar
 
-        boolean conectada = verificarConectividad(camara.getIp(), camara.getPuerto());
-        EstadoCamara estadoNuevo = conectada ? EstadoCamara.ACTIVA : EstadoCamara.INACTIVA;
-        String macDetectada = obtenerMacPorIp(camara.getIp());
+        boolean conectada = verificarConectividad(ip, puerto);
+        int fallos = camara.getFallosConsecutivos() == null ? 0 : camara.getFallosConsecutivos();
 
+        EstadoCamara estadoNuevo;
+        if (conectada) {
+            fallos = 0; // un solo éxito reinicia el contador
+            estadoNuevo = EstadoCamara.ACTIVA;
+        } else {
+            fallos++;
+            // Antes del umbral se conserva el estado que ya tenía la cámara
+            estadoNuevo = (fallos >= UMBRAL_FALLOS) ? EstadoCamara.INACTIVA : estadoAnterior;
+        }
+
+        camara.setFallosConsecutivos(fallos);
         camara.setEstado(estadoNuevo);
         camara.setUltimaVerificacion(LocalDateTime.now());
-        camara.setUltimaMacDetectada(macDetectada);
-        camaraRepository.save(camara);
+
+        // Solo consultamos la MAC si la cámara respondió por TCP (así la entrada ARP es fresca).
+        // Si no se logra leer, se conserva la última MAC conocida en vez de borrarla con null.
+        if (conectada) {
+            Optional<String> mac = macResolver.resolver(ip);
+            mac.ifPresent(camara::setUltimaMacDetectada);
+            if (mac.isEmpty() && camara.getMacEsperada() != null) {
+                log.warn("Cámara id={} responde por TCP pero no se pudo leer su MAC (¿otra subred?)",
+                        camara.getId());
+            }
+        }
+
+        // Update dirigido: solo toca los campos del monitoreo, no pisa ediciones hechas por la API
+        camaraRepository.actualizarEstadoMonitoreo(
+                camara.getId(),
+                camara.getEstado(),
+                camara.getUltimaVerificacion(),
+                camara.getUltimaMacDetectada(),
+                camara.getFallosConsecutivos());
 
         boolean macCoincideAhora = calcularMacCoincide(camara); // DESPUÉS de actualizar
 
-        // Evento 1: cambio de estado (activa/inactiva), igual que antes
+        // Evento 1: cambio de estado (activa/inactiva)
         if (estadoAnterior != estadoNuevo) {
             HistorialEstado historial = new HistorialEstado();
             historial.setCamara(camara);
