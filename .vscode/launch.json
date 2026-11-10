@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "java",
+      "name": "EstadoCamaras",
+      "request": "launch",
+      "mainClass": "com.losMatus.estadoCamaras.EstadoCamarasApplication",
+      "projectName": "estadoCamaras",
+      "cwd": "${workspaceFolder}/estadoCamaras",
+      "envFile": "${workspaceFolder}/estadoCamaras/.env"
+    }
+  ]
+}

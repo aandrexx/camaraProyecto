@@ -2,10 +2,10 @@ package com.losMatus.estadoCamaras.mapper;
 
 import com.losMatus.estadoCamaras.dto.CamaraRequestDTO;
 import com.losMatus.estadoCamaras.dto.CamaraResponseDTO;
+import com.losMatus.estadoCamaras.dto.HistorialEstadoResponseDTO;
 import com.losMatus.estadoCamaras.entity.Camara;
+import com.losMatus.estadoCamaras.entity.HistorialEstado;
 import lombok.Builder;
-import org.mapstruct.Mapper;
-import org.mapstruct.Mapping;
 import org.springframework.stereotype.Component;
 
 //CAMBIAN DE MAPSTRUCT A PATRON BUILDER (POR COMODIDAD)
@@ -23,8 +23,7 @@ public class CamaraMapper {
                 .macEsperada(camaraRequestDTO.macEsperada())
                 .build();
         // sin .id() -> lo genera la BD
-        // sin .empresa() -> se setea aparte en el service (necesita empresaRepository.findById primero)
-        // sin .estado() -> se setea aparte en el service (DESCONOCIDO al crear)
+        // estado (DESCONOCIDO) y fallosConsecutivos (0) -> los pone @Builder.Default
     }
 
     public CamaraResponseDTO toDTO(Camara camara) {
@@ -36,10 +35,31 @@ public class CamaraMapper {
                 .ubicacion(camara.getUbicacion())
                 .macEsperada(camara.getMacEsperada())
                 .ultimaMacDetectada(camara.getUltimaMacDetectada())
+                .macCoincide(camara.getMacEsperada() == null || camara.getUltimaMacDetectada() == null
+                        ? null
+                        : camara.getMacEsperada().equals(camara.getUltimaMacDetectada()))
+                .fallosConsecutivos(camara.getFallosConsecutivos())
                 .estado(camara.getEstado())
                 .ultimaVerificacion(camara.getUltimaVerificacion())
-                .empresaId(camara.getEmpresa().getId())
                 .build();
-        // macCoincide se agrega después en el service con .toBuilder()
+    }
+
+    public void actualizar(CamaraRequestDTO camaraRequestDTO, Camara camara) {
+        camara.setNombre(camaraRequestDTO.nombre());
+        camara.setIp(camaraRequestDTO.ip());
+        camara.setPuerto(camaraRequestDTO.puerto());
+        camara.setUbicacion(camaraRequestDTO.ubicacion());
+        camara.setMacEsperada(camaraRequestDTO.macEsperada());
+    }
+    public HistorialEstadoResponseDTO toHistorialDTO(HistorialEstado historial) {
+        return HistorialEstadoResponseDTO.builder()
+                .id(historial.getId())
+                .camaraId(historial.getCamara().getId())
+                .estadoAnterior(historial.getEstadoAnterior())
+                .estadoNuevo(historial.getEstadoNuevo())
+                .tipoEvento(historial.getTipoEvento())
+                .motivo(historial.getMotivo())
+                .fechaCambio(historial.getFechaCambio())
+                .build();
     }
 }

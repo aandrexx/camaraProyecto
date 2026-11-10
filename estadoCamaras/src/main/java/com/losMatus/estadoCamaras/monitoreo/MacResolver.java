@@ -1,4 +1,4 @@
-package com.losMatus.estadoCamaras.service;
+package com.losMatus.estadoCamaras.monitoreo;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -105,7 +105,7 @@ public class MacResolver {
         return Optional.empty();
     }
 
-    static String normalizar(String mac) {
+    public static String normalizar(String mac) {
         return mac.replace('-', ':').toUpperCase();
     }
 }

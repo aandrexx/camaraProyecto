@@ -3,14 +3,10 @@ package com.losMatus.estadoCamaras.controller;
 import com.losMatus.estadoCamaras.dto.CamaraRequestDTO;
 import com.losMatus.estadoCamaras.dto.CamaraResponseDTO;
 import com.losMatus.estadoCamaras.dto.HistorialEstadoResponseDTO;
-import com.losMatus.estadoCamaras.entity.Camara;
-import com.losMatus.estadoCamaras.entity.HistorialEstado;
-import com.losMatus.estadoCamaras.mapper.CamaraMapper;
-import com.losMatus.estadoCamaras.repository.CamaraRepository;
-import com.losMatus.estadoCamaras.repository.HistorialEstadoRepository;
 import com.losMatus.estadoCamaras.service.CamaraService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -22,22 +18,46 @@ public class CamaraController {
 
     private final CamaraService camaraService;
 
-    //Camaras de una empresa especifica
-    @GetMapping("/empresa/{empresaId}")
-    public List<CamaraResponseDTO> listarPorEmpresa(@PathVariable Long empresaId){
-        return camaraService.listarPorEmpresa(empresaId);
-    }
     @PostMapping
-    public CamaraResponseDTO save (@Valid @RequestBody CamaraRequestDTO camaraRequestDTO){
-        return camaraService.save(camaraRequestDTO);
+    @ResponseStatus(HttpStatus.CREATED)
+    public CamaraResponseDTO crear(@Valid @RequestBody CamaraRequestDTO request) {
+        return camaraService.crear(request);
     }
-    //Historial de estados de una camara especifica
-    @GetMapping("/{camaraId}/historial")
-    public List<HistorialEstadoResponseDTO> historialDeCamara(@PathVariable Long camaraId){
-        return camaraService.historialDeCamara(camaraId);
+
+    @GetMapping
+    public List<CamaraResponseDTO> listar() {
+        return camaraService.listar();
     }
+
+    @GetMapping("/retiradas")
+    public List<CamaraResponseDTO> listarRetiradas() {
+        return camaraService.listarRetiradas();
+    }
+
+    @GetMapping("/{id}")
+    public CamaraResponseDTO obtener(@PathVariable Long id) {
+        return camaraService.obtener(id);
+    }
+
     @PutMapping("/{id}")
-    public CamaraResponseDTO actualizar(@PathVariable Long id,@Valid @RequestBody CamaraRequestDTO dto) {
-        return camaraService.actualizar(id, dto);
+    public CamaraResponseDTO actualizar(@PathVariable Long id,
+                                     @Valid @RequestBody CamaraRequestDTO request) {
+        return camaraService.actualizar(id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void eliminar(@PathVariable Long id) {
+        camaraService.eliminar(id);
+    }
+
+    @PostMapping("/{id}/restaurar")
+    public CamaraResponseDTO restaurar(@PathVariable Long id) {
+        return camaraService.restaurar(id);
+    }
+
+    @GetMapping("/{id}/historial")
+    public List<HistorialEstadoResponseDTO> historial(@PathVariable Long id) {
+        return camaraService.historial(id);
     }
 }

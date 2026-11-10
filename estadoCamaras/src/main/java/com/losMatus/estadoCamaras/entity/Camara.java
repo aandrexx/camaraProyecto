@@ -1,6 +1,5 @@
 package com.losMatus.estadoCamaras.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.losMatus.estadoCamaras.enums.EstadoCamara;
 import jakarta.persistence.*;
 import lombok.*;
@@ -35,17 +34,21 @@ public class Camara {
     @Column(name = "ultima_mac_detectada")
     private String ultimaMacDetectada;
 
-    @Column(name = "fallos_consecutivos")
-    private Integer fallosConsecutivos;
+    @Builder.Default
+    @Column(name = "fallos_consecutivos", nullable = false)
+    private Integer fallosConsecutivos = 0;
 
+    @Builder.Default
     @Enumerated(EnumType.STRING)
-    private EstadoCamara estado;
+    @Column(nullable = false)
+    private EstadoCamara estado = EstadoCamara.DESCONOCIDO;
 
     private LocalDateTime ultimaVerificacion;
 
-    @ManyToOne
-    @JoinColumn(name = "empresa_id", nullable = false)
-    @JsonIgnore
-    private Empresa empresa;
+    @Builder.Default
+    @Column(nullable = false, updatable = false)
+    private boolean eliminada = false;
+
+
 
 }

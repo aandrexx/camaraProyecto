@@ -5,7 +5,7 @@ import lombok.Builder;
 
 import java.time.LocalDateTime;
 
-@Builder(toBuilder = true)
+@Builder
 public record CamaraResponseDTO(
         Long id,
         String nombre,
@@ -15,8 +15,8 @@ public record CamaraResponseDTO(
         String macEsperada,
         String ultimaMacDetectada,
         Boolean macCoincide,
+        Integer fallosConsecutivos,
         EstadoCamara estado,
-        LocalDateTime ultimaVerificacion,
-        Long empresaId
+        LocalDateTime ultimaVerificacion
 ) {
 }

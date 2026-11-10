@@ -4,123 +4,159 @@ import com.losMatus.estadoCamaras.entity.Camara;
 import com.losMatus.estadoCamaras.entity.HistorialEstado;
 import com.losMatus.estadoCamaras.enums.EstadoCamara;
 import com.losMatus.estadoCamaras.enums.TipoEvento;
+import com.losMatus.estadoCamaras.monitoreo.*;
+import com.losMatus.estadoCamaras.notificador.Notificador;
 import com.losMatus.estadoCamaras.repository.CamaraRepository;
 import com.losMatus.estadoCamaras.repository.HistorialEstadoRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.Socket;
 import java.time.LocalDateTime;
-import java.util.Optional;
 
 @Slf4j
 @Service
 public class MonitoreoService {
 
-    private static final int UMBRAL_FALLOS = 3;
-
     private final CamaraRepository camaraRepository;
     private final HistorialEstadoRepository historialEstadoRepository;
-    private final MacResolver macResolver;
+    private final PingVerificador pingVerificador;
+    private final TcpVerificador tcpVerificador;
+    private final MacVerificador macVerificador;
+    private final EvaluarEstado evaluarEstado;
+    private final Notificador notificador;
 
-    public MonitoreoService(CamaraRepository camaraRepository,
-                            HistorialEstadoRepository historialEstadoRepository,
-                            MacResolver macResolver) {
+    private static final int REINTENTOS = 3;
+    private static final long ESPERA_REINTENTO_MS = 3000;
+
+    public MonitoreoService(CamaraRepository camaraRepository, HistorialEstadoRepository historialEstadoRepository,
+                            PingVerificador pingVerificador, TcpVerificador tcpVerificador, MacVerificador macVerificador,
+                            EvaluarEstado evaluarEstado, Notificador notificador) {
         this.camaraRepository = camaraRepository;
         this.historialEstadoRepository = historialEstadoRepository;
-        this.macResolver = macResolver;
+        this.pingVerificador = pingVerificador;
+        this.tcpVerificador = tcpVerificador;
+        this.macVerificador = macVerificador;
+        this.evaluarEstado = evaluarEstado;
+        this.notificador = notificador;
     }
 
-    //Simplificamos a solo trabajar con TCP
-    public boolean verificarConectividad(String ip, int puerto) {
-        try (Socket socket = new Socket()) {
-            socket.connect(new InetSocketAddress(ip, puerto), 2000);
-            return true;
-        } catch (IOException e) {
-            return false;
-        }
-    }
+    private record Chequeo(EstadoCamara estado, ResultadoCheck ping, ResultadoCheck tcp, ResultadoCheck mac) {}
 
-    public void actualizarEstadoCamara(Camara camara) {
-        String ip = camara.getIp();
-        Integer puerto = camara.getPuerto();
-        if (ip == null || ip.isBlank() || puerto == null || puerto < 1 || puerto > 65535) {
-            log.warn("Cámara id={} con ip/puerto inválido (ip={}, puerto={}), se omite el chequeo",
-                    camara.getId(), ip, puerto);
-            return;
-        }
-
-        EstadoCamara estadoAnterior = camara.getEstado();
-        boolean macCoincidiaAntes = calcularMacCoincide(camara); // ANTES de actualizar
-
-        boolean conectada = verificarConectividad(ip, puerto);
-        int fallos = camara.getFallosConsecutivos() == null ? 0 : camara.getFallosConsecutivos();
-
-        EstadoCamara estadoNuevo;
-        if (conectada) {
-            fallos = 0; // un solo éxito reinicia el contador
-            estadoNuevo = EstadoCamara.ACTIVA;
-        } else {
-            fallos++;
-            // Antes del umbral se conserva el estado que ya tenía la cámara
-            estadoNuevo = (fallos >= UMBRAL_FALLOS) ? EstadoCamara.INACTIVA : estadoAnterior;
-        }
-
-        camara.setFallosConsecutivos(fallos);
-        camara.setEstado(estadoNuevo);
-        camara.setUltimaVerificacion(LocalDateTime.now());
-
-        // Solo consultamos la MAC si la cámara respondió por TCP (así la entrada ARP es fresca).
-        // Si no se logra leer, se conserva la última MAC conocida en vez de borrarla con null.
-        if (conectada) {
-            Optional<String> mac = macResolver.resolver(ip);
-            mac.ifPresent(camara::setUltimaMacDetectada);
-            if (mac.isEmpty() && camara.getMacEsperada() != null) {
-                log.warn("Cámara id={} responde por TCP pero no se pudo leer su MAC (¿otra subred?)",
-                        camara.getId());
+    public void monitorearTodas() {
+        for (Camara camara : camaraRepository.findAllByEliminadaFalse()) {
+            try {
+                monitorear(camara);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (Exception e) {
+                log.error("Error monitoreando la cámara {}: {}", camara.getId(), e.getMessage());
             }
         }
+    }
 
-        // Update dirigido: solo toca los campos del monitoreo, no pisa ediciones hechas por la API
-        camaraRepository.actualizarEstadoMonitoreo(
-                camara.getId(),
-                camara.getEstado(),
-                camara.getUltimaVerificacion(),
-                camara.getUltimaMacDetectada(),
-                camara.getFallosConsecutivos());
+    private void monitorear(Camara camara) throws InterruptedException {
+        EstadoCamara anterior = camara.getEstado();
 
-        boolean macCoincideAhora = calcularMacCoincide(camara); // DESPUÉS de actualizar
+        // 1. Primer chequeo
+        Chequeo chequeo = chequear(camara);
 
-        // Evento 1: cambio de estado (activa/inactiva)
-        if (estadoAnterior != estadoNuevo) {
-            HistorialEstado historial = new HistorialEstado();
-            historial.setCamara(camara);
-            historial.setEstadoAnterior(estadoAnterior);
-            historial.setEstadoNuevo(estadoNuevo);
-            historial.setTipoEvento(TipoEvento.CAMBIO_ESTADO);
-            historial.setFechaCambio(LocalDateTime.now());
-            historialEstadoRepository.save(historial);
+        // 2. Si parece una caída nueva, reintentar antes de confirmarla
+        int reintento = 0;
+        while (chequeo.estado() == EstadoCamara.INACTIVA
+                && anterior != EstadoCamara.INACTIVA
+                && reintento < REINTENTOS) {
+            Thread.sleep(ESPERA_REINTENTO_MS);
+            chequeo = chequear(camara);
+            reintento++;
         }
 
-        // Evento 2: nueva alerta de discrepancia de MAC (solo cuando pasa de "ok" a "no coincide")
-        if (macCoincidiaAntes && !macCoincideAhora) {
-            HistorialEstado alerta = new HistorialEstado();
-            alerta.setCamara(camara);
-            alerta.setTipoEvento(TipoEvento.ALERTA_MAC);
-            alerta.setFechaCambio(LocalDateTime.now());
-            historialEstadoRepository.save(alerta);
+        EstadoCamara nuevo = chequeo.estado();
+        camara.setFallosConsecutivos(nuevo == EstadoCamara.INACTIVA ? reintento + 1 : 0);
+
+        // 3. Actualizar la cámara
+        ResultadoCheck mac = chequeo.mac();
+        if (mac != null && mac.valor() != null) {
+            camara.setUltimaMacDetectada(mac.valor());
+        }
+        camara.setUltimaVerificacion(LocalDateTime.now());
+
+        // 4. Historial: solo si el estado cambió
+        boolean cambio = nuevo != anterior;
+        if (cambio) {
+            camara.setEstado(nuevo);
+            historialEstadoRepository.save(HistorialEstado.builder()
+                    .camara(camara)
+                    .estadoAnterior(anterior)
+                    .estadoNuevo(nuevo)
+                    .tipoEvento(nuevo == EstadoCamara.ALERTA
+                            ? TipoEvento.ALERTA_MAC
+                            : TipoEvento.CAMBIO_ESTADO)
+                    .motivo(describirCambio(camara, nuevo, chequeo))
+                    .fechaCambio(LocalDateTime.now())
+                    .build());
+        }
+
+        camaraRepository.save(camara);
+
+        // 5. Notificar: no avisar en la primera revisión que sale bien
+        if (cambio && !(anterior == EstadoCamara.DESCONOCIDO && nuevo == EstadoCamara.ACTIVA)) {
+            notificar(camara, anterior, nuevo);
         }
     }
 
-    public boolean calcularMacCoincide(Camara camara) {
-        if (camara.getMacEsperada() == null || camara.getUltimaMacDetectada() == null) {
-            return true; // sin datos suficientes, no se considera una alerta (aún no hay nada que comparar)
+    private void notificar(Camara camara, EstadoCamara anterior, EstadoCamara nuevo) {
+        try {
+            notificador.notificar(camara, anterior, nuevo);
+        } catch (Exception e) {
+            // un fallo al notificar no debe romper el monitoreo
+            log.error("No se pudo enviar la notificación de la cámara {}: {}",
+                    camara.getId(), e.getMessage());
         }
-        return camara.getUltimaMacDetectada().equalsIgnoreCase(camara.getMacEsperada());
+    }
+
+    // Un chequeo completo: ping, puerto (si tiene), MAC (si respondió) y evaluación
+    private Chequeo chequear(Camara camara) {
+        ResultadoCheck ping = pingVerificador.verificar(camara);
+        ResultadoCheck tcp = camara.getPuerto() != null ? tcpVerificador.verificar(camara) : null;
+
+        boolean responde = ping.exitoso() || (tcp != null && tcp.exitoso());
+        ResultadoCheck mac = responde ? macVerificador.verificar(camara) : null;
+
+        return new Chequeo(evaluarEstado.evaluar(ping, tcp, mac), ping, tcp, mac);
+    }
+
+    private String describirCambio(Camara camara, EstadoCamara estado, Chequeo chequeo) {
+        if (estado == EstadoCamara.ALERTA && chequeo.mac() != null && chequeo.mac().valor() != null) {
+            return "MAC distinta: esperada " + camara.getMacEsperada()
+                    + ", detectada " + chequeo.mac().valor() + ".";
+        }
+
+        if (estado == EstadoCamara.INACTIVA) {
+            String tcp = chequeo.tcp() == null ? "no configurado" : chequeo.tcp().detalle();
+            return "Sin respuesta. Ping: " + chequeo.ping().detalle() + "; TCP: " + tcp + ".";
+        }
+
+        if (estado == EstadoCamara.DEGRADADA) {
+            return "Ping respondió, pero " + chequeo.tcp().detalle() + ".";
+        }
+
+        if (estado == EstadoCamara.ACTIVA && !chequeo.ping().exitoso()
+                && chequeo.tcp() != null && chequeo.tcp().exitoso()) {
+            return "Ping no respondió; TCP en el puerto " + camara.getPuerto() + " sí respondió.";
+        }
+
+        if (estado == EstadoCamara.ACTIVA && chequeo.ping().exitoso() && chequeo.tcp() != null
+                && chequeo.tcp().exitoso()) {
+            return "Ping y TCP en el puerto " + camara.getPuerto() + " respondieron.";
+        }
+
+        if (estado == EstadoCamara.ACTIVA && chequeo.ping().exitoso()) {
+            return chequeo.tcp() == null
+                    ? "Ping respondió; TCP no se verificó porque no hay un puerto configurado."
+                    : "Ping respondió.";
+        }
+
+        return "Estado detectado: " + estado + ".";
     }
 }

@@ -26,6 +26,7 @@
         <div class="sidebar-label navigation-label">MONITOREO</div>
         <a class="nav-link active" href="#dashboard"><span class="nav-icon">▦</span> Panel general</a>
         <a class="nav-link" href="#cameras"><span class="nav-icon">◉</span> Cámaras <span id="nav-camera-count" class="nav-count">0</span></a>
+        <a class="nav-link" id="retired-nav-link" href="#retired-section"><span class="nav-icon">↶</span> Retiradas <span id="nav-retired-count" class="nav-count">0</span></a>
         <div class="sidebar-bottom">
             <div class="connection-indicator"><span class="connection-dot"></span><span id="connection-label">Conectando...</span></div>
             <div class="sidebar-footnote">EstadoCámaras <span>•</span> Monitoreo IP / MAC</div>
@@ -50,13 +51,6 @@
                 <h1>Monitoreo de cámaras</h1>
                 <p class="page-description">Estado de conexión e identificación de dispositivos en tu red.</p>
             </div>
-            <label class="company-picker">
-                <span>Empresa</span>
-                <select id="company-select" aria-label="Filtrar por empresa">
-                    <option value="">Cargando empresas...</option>
-                </select>
-                <button class="icon-button" id="add-company-button" type="button" title="Agregar empresa" aria-label="Agregar empresa">＋</button>
-            </label>
         </section>
 
         <div id="error-banner" class="error-banner" role="alert" hidden></div>
@@ -65,7 +59,7 @@
             <article class="stat-card">
                 <div class="stat-top"><span class="stat-label">Total de cámaras</span><span class="stat-icon icon-neutral">▦</span></div>
                 <div class="stat-value" id="total-count">—</div>
-                <div class="stat-caption">Registradas en la empresa</div>
+                <div class="stat-caption">Registradas para monitoreo</div>
             </article>
             <article class="stat-card">
                 <div class="stat-top"><span class="stat-label">Activas</span><span class="stat-icon icon-green">✓</span></div>
@@ -85,7 +79,7 @@
             <article class="stat-card">
                 <div class="stat-top"><span class="stat-label">IPs duplicadas</span><span class="stat-icon icon-amber">↔</span></div>
                 <div class="stat-value" id="duplicate-ip-count">—</div>
-                <div class="stat-caption"><span class="caption-dot amber-dot"></span> Direcciones repetidas</div>
+                <div class="stat-caption"><span class="caption-dot amber-dot"></span> Repetidas entre registros</div>
             </article>
         </section>
 
@@ -98,6 +92,17 @@
                 <label class="search-box">
                     <span aria-hidden="true">⌕</span>
                     <input id="search-input" type="search" placeholder="Buscar por nombre, IP o ubicación" aria-label="Buscar cámaras">
+                </label>
+                <label class="filter-box">
+                    <span class="sr-only">Filtrar por estado</span>
+                    <select id="status-filter" aria-label="Filtrar cámaras por estado">
+                        <option value="">Todos los estados</option>
+                        <option value="ACTIVA">Activas</option>
+                        <option value="INACTIVA">Inactivas</option>
+                        <option value="DEGRADADA">Degradadas</option>
+                        <option value="ALERTA">Alertas</option>
+                        <option value="DESCONOCIDO">Desconocidas</option>
+                    </select>
                 </label>
             </div>
             <div class="table-wrap">
@@ -126,6 +131,32 @@
             </div>
             <footer class="table-footer"><span id="table-result-count">0 dispositivos</span><span>La verificación se actualiza automáticamente desde el servidor.</span></footer>
         </section>
+
+        <details class="camera-section retired-section" id="retired-section">
+            <summary class="retired-summary">
+                <span><strong>Cámaras retiradas</strong><small>Ya no se monitorean. Su historial se conserva.</small></span>
+                <span id="retired-count" class="retired-count">0</span>
+            </summary>
+            <div class="table-wrap">
+                <table>
+                    <thead>
+                    <tr>
+                        <th>CÁMARA</th>
+                        <th>DIRECCIÓN IP</th>
+                        <th>ÚLTIMA REVISIÓN</th>
+                        <th><span class="sr-only">Acciones</span></th>
+                    </tr>
+                    </thead>
+                    <tbody id="retired-camera-table-body"></tbody>
+                </table>
+                <div id="retired-empty-state" class="empty-state" hidden>
+                    <div class="empty-illustration">↶</div>
+                    <h3>No hay cámaras retiradas</h3>
+                    <p>Las cámaras que retires aparecerán aquí y podrás restaurarlas.</p>
+                </div>
+            </div>
+            <footer class="table-footer"><span id="retired-result-count">0 cámaras</span><span>Restaurar una cámara la vuelve a incluir en el monitoreo.</span></footer>
+        </details>
         <footer class="page-footer">EstadoCámaras <span>•</span> Panel de monitoreo de red</footer>
     </main>
 </div>
@@ -139,19 +170,25 @@
         <p class="modal-description">Completa los datos de conexión y la MAC autorizada del dispositivo.</p>
         <div class="form-grid">
             <label class="form-field full-width">Nombre de la cámara <span class="required">*</span>
-                <input name="nombre" type="text" maxlength="120" placeholder="Ej. Entrada principal" required>
+                <input name="nombre" type="text" maxlength="100" placeholder="Ej. Entrada principal" required>
             </label>
             <label class="form-field">Dirección IP <span class="required">*</span>
-                <input name="ip" type="text" inputmode="decimal" placeholder="192.168.1.20" required>
+                <input name="ip" type="text" inputmode="decimal" maxlength="15"
+                       pattern="((25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])\.){3}(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])"
+                       title="Ingresa una dirección IPv4 válida, por ejemplo 192.168.1.20"
+                       placeholder="192.168.1.20" required>
             </label>
-            <label class="form-field">Puerto TCP
-                <input name="puerto" type="number" min="1" max="65535" placeholder="80">
+            <label class="form-field">Puerto TCP <span class="required">*</span>
+                <input name="puerto" type="number" min="1" max="65535" placeholder="80" required>
             </label>
             <label class="form-field full-width">Ubicación
-                <input name="ubicacion" type="text" maxlength="160" placeholder="Ej. Pasillo norte">
+                <input name="ubicacion" type="text" maxlength="150" placeholder="Ej. Pasillo norte">
             </label>
             <label class="form-field full-width">MAC esperada
-                <input name="macEsperada" type="text" placeholder="00:1A:2B:3C:4D:5E">
+                <input name="macEsperada" type="text" maxlength="17"
+                       pattern="([0-9A-Fa-f]{2}[:\-]){5}[0-9A-Fa-f]{2}"
+                       title="Usa una MAC válida, por ejemplo 00:1A:2B:3C:4D:5E"
+                       placeholder="00:1A:2B:3C:4D:5E">
                 <small>Opcional. Acepta formatos con dos puntos o guiones.</small>
             </label>
         </div>
@@ -159,24 +196,6 @@
         <div class="modal-actions">
             <button class="button button-secondary close-dialog" type="button">Cancelar</button>
             <button class="button button-primary" type="submit" id="save-camera-button">Guardar cámara</button>
-        </div>
-    </form>
-</dialog>
-
-<dialog class="modal compact-modal" id="company-dialog">
-    <form id="company-form" class="modal-form">
-        <div class="modal-heading">
-            <div><p class="eyebrow">ESPACIO DE TRABAJO</p><h2>Agregar empresa</h2></div>
-            <button class="icon-button close-dialog" type="button" aria-label="Cerrar">×</button>
-        </div>
-        <p class="modal-description">Crea una empresa para organizar sus cámaras.</p>
-        <label class="form-field">Nombre <span class="required">*</span><input name="nombre" type="text" maxlength="160" required></label>
-        <label class="form-field">Dirección<input name="direccion" type="text" maxlength="255"></label>
-        <label class="form-field">Contacto técnico<input name="contactoTecnico" type="text" maxlength="160"></label>
-        <div id="company-form-error" class="form-error" role="alert" hidden></div>
-        <div class="modal-actions">
-            <button class="button button-secondary close-dialog" type="button">Cancelar</button>
-            <button class="button button-primary" type="submit">Guardar empresa</button>
         </div>
     </form>
 </dialog>

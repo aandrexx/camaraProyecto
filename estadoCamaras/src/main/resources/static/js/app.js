@@ -1,17 +1,19 @@
 const API = {
-    companies: "/api/empresas",
-    cameras: "/api/camaras"
+    cameras: "/api/camaras",
+    retiredCameras: "/api/camaras/retiradas"
 };
 
 const state = {
-    companies: [],
     cameras: [],
+    retiredCameras: [],
     editingCameraId: null
 };
 
 const elements = {
-    companySelect: document.querySelector("#company-select"),
     cameraBody: document.querySelector("#camera-table-body"),
+    retiredCameraBody: document.querySelector("#retired-camera-table-body"),
+    retiredEmptyState: document.querySelector("#retired-empty-state"),
+    retiredSection: document.querySelector("#retired-section"),
     emptyState: document.querySelector("#empty-state"),
     emptyTitle: document.querySelector("#empty-title"),
     emptyDescription: document.querySelector("#empty-description"),
@@ -21,9 +23,6 @@ const elements = {
     cameraDialog: document.querySelector("#camera-dialog"),
     cameraForm: document.querySelector("#camera-form"),
     cameraFormError: document.querySelector("#camera-form-error"),
-    companyDialog: document.querySelector("#company-dialog"),
-    companyForm: document.querySelector("#company-form"),
-    companyFormError: document.querySelector("#company-form-error"),
     historyDialog: document.querySelector("#history-dialog"),
     historyContent: document.querySelector("#history-content")
 };
@@ -46,7 +45,9 @@ async function request(url, options = {}) {
         }
     }
     if (!response.ok) {
-        const detail = typeof data === "string" ? data : data?.message || data?.error || "";
+        const detail = typeof data === "string"
+            ? (/^\s*<(?:!doctype|html)/i.test(data) ? "" : data)
+            : data?.message || data?.error || "";
         throw new Error(detail || `Error HTTP ${response.status}`);
     }
     return data;
@@ -88,60 +89,35 @@ function escapeHtml(value) {
     })[character]);
 }
 
-async function loadCompanies(preferredId) {
-    const companies = await request(API.companies);
-    if (!Array.isArray(companies)) throw new Error("La API devolvió un formato inesperado al cargar empresas.");
-    state.companies = companies;
-    elements.companySelect.replaceChildren();
-
-    if (companies.length === 0) {
-        const option = document.createElement("option");
-        option.value = "";
-        option.textContent = "Agrega una empresa";
-        elements.companySelect.append(option);
-        state.cameras = [];
-        renderCameras();
-        return;
-    }
-
-    companies.forEach(company => {
-        const option = document.createElement("option");
-        option.value = company.id;
-        option.textContent = company.nombre;
-        elements.companySelect.append(option);
-    });
-
-    const selectedId = preferredId ?? elements.companySelect.value;
-    elements.companySelect.value = companies.some(company => String(company.id) === String(selectedId))
-        ? String(selectedId)
-        : String(companies[0].id);
-    await loadCameras();
-}
-
 async function loadCameras() {
-    const companyId = elements.companySelect.value;
-    if (!companyId) {
-        state.cameras = [];
-        renderCameras();
-        return;
+    const [cameras, retiredCameras] = await Promise.all([
+        request(API.cameras),
+        request(API.retiredCameras)
+    ]);
+    if (!Array.isArray(cameras) || !Array.isArray(retiredCameras)) {
+        throw new Error("La API devolvió un formato inesperado al cargar cámaras.");
     }
-    const cameras = await request(`${API.cameras}/empresa/${encodeURIComponent(companyId)}`);
-    if (!Array.isArray(cameras)) throw new Error("La API devolvió un formato inesperado al cargar cámaras.");
     state.cameras = cameras;
+    state.retiredCameras = retiredCameras;
     renderCameras();
+    renderRetiredCameras();
 }
 
 function statusDetails(status) {
     if (status === "ACTIVA") return { text: "Activa", className: "status-active" };
     if (status === "INACTIVA") return { text: "Inactiva", className: "status-inactive" };
-    return { text: "Desconocido", className: "status-unknown" };
+    if (status === "DEGRADADA") return { text: "Degradada", className: "status-degraded" };
+    if (status === "ALERTA") return { text: "Alerta", className: "status-alert" };
+    return { text: "Desconocida", className: "status-unknown" };
 }
 
 function renderCameras() {
     const query = document.querySelector("#search-input").value.trim().toLocaleLowerCase("es");
+    const statusFilter = document.querySelector("#status-filter").value;
     const filtered = state.cameras.filter(camera =>
         [camera.nombre, camera.ip, camera.ubicacion, camera.macEsperada, camera.ultimaMacDetectada]
             .some(value => String(value ?? "").toLocaleLowerCase("es").includes(query))
+        && (!statusFilter || camera.estado === statusFilter)
     );
     const active = state.cameras.filter(camera => camera.estado === "ACTIVA").length;
     const inactive = state.cameras.filter(camera => camera.estado === "INACTIVA").length;
@@ -159,6 +135,7 @@ function renderCameras() {
     document.querySelector("#mac-alert-count").textContent = macAlerts;
     document.querySelector("#duplicate-ip-count").textContent = duplicateIps.size;
     document.querySelector("#nav-camera-count").textContent = state.cameras.length;
+    document.querySelector("#nav-retired-count").textContent = state.retiredCameras.length;
     document.querySelector("#table-result-count").textContent =
         `${filtered.length} ${filtered.length === 1 ? "dispositivo" : "dispositivos"}`;
 
@@ -166,12 +143,14 @@ function renderCameras() {
     elements.emptyState.hidden = filtered.length !== 0;
     if (filtered.length === 0) {
         const hasSearch = query.length > 0;
+        const hasFilter = statusFilter.length > 0;
         elements.emptyTitle.textContent = hasSearch ? "No hay resultados" :
+            hasFilter ? "No hay cámaras con ese estado" :
             state.cameras.length === 0 ? "Todavía no hay cámaras" : "No se encontraron cámaras";
-        elements.emptyDescription.textContent = hasSearch
+        elements.emptyDescription.textContent = hasSearch || hasFilter
             ? "Prueba con otro nombre, dirección IP o ubicación."
             : state.cameras.length === 0 ? "Registra una cámara para comenzar a monitorear la red." : "No hay cámaras para mostrar.";
-        document.querySelector("#empty-add-camera").hidden = state.companies.length === 0 || hasSearch;
+        document.querySelector("#empty-add-camera").hidden = hasSearch || hasFilter;
         return;
     }
 
@@ -181,7 +160,7 @@ function renderCameras() {
             ? '<span class="mac-warning">⚠ No coincide</span>'
             : "";
         const ipWarning = duplicateIps.has(String(camera.ip ?? "").trim())
-            ? '<span class="ip-warning">⚠ IP repetida en esta empresa</span>'
+            ? '<span class="ip-warning">⚠ IP repetida</span>'
             : "";
         const expectedMac = camera.macEsperada
             ? `<span class="mac-address">${escapeHtml(camera.macEsperada)}</span>`
@@ -200,8 +179,31 @@ function renderCameras() {
             <td><div class="row-actions">
                 <button class="row-action" type="button" data-action="history" data-id="${escapeHtml(camera.id)}" title="Ver historial" aria-label="Ver historial">◷</button>
                 <button class="row-action" type="button" data-action="edit" data-id="${escapeHtml(camera.id)}" title="Editar cámara" aria-label="Editar cámara">✎</button>
+                <button class="row-action row-action-danger" type="button" data-action="delete" data-id="${escapeHtml(camera.id)}" title="Eliminar cámara" aria-label="Eliminar cámara">×</button>
             </div></td>`;
         elements.cameraBody.append(row);
+    });
+}
+
+function renderRetiredCameras() {
+    const count = state.retiredCameras.length;
+    document.querySelector("#retired-count").textContent = count;
+    document.querySelector("#retired-result-count").textContent = `${count} ${count === 1 ? "cámara" : "cámaras"}`;
+    elements.retiredCameraBody.replaceChildren();
+    elements.retiredEmptyState.hidden = count !== 0;
+    elements.retiredSection.classList.toggle("has-retired-cameras", count > 0);
+
+    state.retiredCameras.forEach(camera => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+            <td><div class="camera-name"><strong>${escapeHtml(camera.nombre)}</strong><span>${escapeHtml(camera.ubicacion || "Ubicación no definida")}</span></div></td>
+            <td><span class="ip-address">${escapeHtml(camera.ip || "—")}${camera.puerto ? `:${escapeHtml(camera.puerto)}` : ""}</span></td>
+            <td><span class="timestamp">${escapeHtml(formatDate(camera.ultimaVerificacion))}</span></td>
+            <td><div class="row-actions">
+                <button class="row-action" type="button" data-action="history" data-id="${escapeHtml(camera.id)}" title="Ver historial" aria-label="Ver historial">◷</button>
+                <button class="button button-restore" type="button" data-action="restore" data-id="${escapeHtml(camera.id)}">Restaurar</button>
+            </div></td>`;
+        elements.retiredCameraBody.append(row);
     });
 }
 
@@ -216,7 +218,7 @@ async function refreshDashboard() {
     const refreshButton = document.querySelector("#refresh-button");
     refreshButton.disabled = true;
     try {
-        await loadCompanies(elements.companySelect.value || undefined);
+        await loadCameras();
         updateRefreshTime();
         setConnection(true);
     } catch (error) {
@@ -231,10 +233,6 @@ async function refreshDashboard() {
 }
 
 function openCameraDialog(camera) {
-    if (state.companies.length === 0) {
-        showError("Primero agrega una empresa para poder registrar cámaras.");
-        return;
-    }
     state.editingCameraId = camera?.id ?? null;
     elements.cameraForm.reset();
     elements.cameraFormError.hidden = true;
@@ -257,8 +255,7 @@ async function saveCamera(event) {
         ip: formData.get("ip").trim(),
         puerto: formData.get("puerto") ? Number(formData.get("puerto")) : null,
         ubicacion: formData.get("ubicacion").trim() || null,
-        macEsperada: formData.get("macEsperada").trim() || null,
-        empresaId: Number(elements.companySelect.value)
+        macEsperada: formData.get("macEsperada").trim() || null
     };
     const saveButton = document.querySelector("#save-camera-button");
     saveButton.disabled = true;
@@ -280,35 +277,9 @@ async function saveCamera(event) {
     }
 }
 
-async function saveCompany(event) {
-    event.preventDefault();
-    elements.companyFormError.hidden = true;
-    const formData = new FormData(elements.companyForm);
-    const payload = {
-        nombre: formData.get("nombre").trim(),
-        direccion: formData.get("direccion").trim() || null,
-        contactoTecnico: formData.get("contactoTecnico").trim() || null
-    };
-    const saveButton = elements.companyForm.querySelector('[type="submit"]');
-    saveButton.disabled = true;
-    try {
-        const company = await request(API.companies, { method: "POST", body: JSON.stringify(payload) });
-        elements.companyDialog.close();
-        elements.companyForm.reset();
-        await loadCompanies(company.id);
-        clearError();
-        setConnection(true);
-        updateRefreshTime();
-    } catch (error) {
-        elements.companyFormError.textContent = `No se pudo guardar la empresa: ${error.message}`;
-        elements.companyFormError.hidden = false;
-    } finally {
-        saveButton.disabled = false;
-    }
-}
-
 async function openHistory(cameraId) {
-    const camera = state.cameras.find(item => String(item.id) === String(cameraId));
+    const camera = [...state.cameras, ...state.retiredCameras]
+        .find(item => String(item.id) === String(cameraId));
     document.querySelector("#history-title").textContent = camera
         ? `Historial · ${camera.nombre}` : "Historial de cámara";
     elements.historyContent.innerHTML = '<span class="loading-spinner"></span> Cargando historial...';
@@ -327,7 +298,8 @@ async function openHistory(cameraId) {
             const item = document.createElement("article");
             item.className = "history-entry";
             item.innerHTML = `<span class="history-marker">${event.tipoEvento === "ALERTA_MAC" ? "⚠" : "↻"}</span>
-                <div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(formatDate(event.fechaCambio))}</p></div>`;
+                <div><h3>${escapeHtml(title)}</h3><p>${escapeHtml(formatDate(event.fechaCambio))}</p>
+                    <p class="history-reason">${escapeHtml(event.motivo || "Sin detalle registrado para este evento.")}</p></div>`;
             elements.historyContent.append(item);
         });
     } catch (error) {
@@ -335,28 +307,43 @@ async function openHistory(cameraId) {
     }
 }
 
+async function deleteCamera(camera) {
+    if (!window.confirm(`¿Retirar la cámara "${camera.nombre}"? Dejará de aparecer y de monitorearse, pero su historial se conservará.`)) {
+        return;
+    }
+    clearError();
+    try {
+        await request(`${API.cameras}/${encodeURIComponent(camera.id)}`, { method: "DELETE" });
+        await refreshDashboard();
+    } catch (error) {
+        showError(`No se pudo retirar la cámara: ${error.message}`);
+    }
+}
+
+async function restoreCamera(camera, button) {
+    button.disabled = true;
+    clearError();
+    try {
+        await request(`${API.cameras}/${encodeURIComponent(camera.id)}/restaurar`, { method: "POST" });
+        await refreshDashboard();
+    } catch (error) {
+        showError(`No se pudo restaurar la cámara: ${error.message}`);
+    } finally {
+        if (button.isConnected) button.disabled = false;
+    }
+}
+
 document.querySelector("#refresh-button").addEventListener("click", refreshDashboard);
 document.querySelector("#add-camera-button").addEventListener("click", () => openCameraDialog());
 document.querySelector("#empty-add-camera").addEventListener("click", () => openCameraDialog());
-document.querySelector("#add-company-button").addEventListener("click", () => {
-    elements.companyForm.reset();
-    elements.companyFormError.hidden = true;
-    elements.companyDialog.showModal();
-});
-elements.companySelect.addEventListener("change", async () => {
-    clearError();
-    try {
-        await loadCameras();
-        setConnection(true);
-        updateRefreshTime();
-    } catch (error) {
-        setConnection(false);
-        showError(`No se pudieron cargar las cámaras: ${error.message}`);
-    }
-});
 document.querySelector("#search-input").addEventListener("input", renderCameras);
+document.querySelector("#status-filter").addEventListener("change", renderCameras);
+document.querySelector("#retired-nav-link").addEventListener("click", event => {
+    event.preventDefault();
+    elements.retiredSection.open = true;
+    elements.retiredSection.scrollIntoView({ behavior: "smooth", block: "start" });
+});
 elements.cameraForm.addEventListener("submit", saveCamera);
-elements.companyForm.addEventListener("submit", saveCompany);
 elements.cameraBody.addEventListener("click", event => {
     const button = event.target.closest("button[data-action]");
     if (!button) return;
@@ -364,6 +351,15 @@ elements.cameraBody.addEventListener("click", event => {
     if (!camera) return;
     if (button.dataset.action === "edit") openCameraDialog(camera);
     if (button.dataset.action === "history") openHistory(camera.id);
+    if (button.dataset.action === "delete") deleteCamera(camera);
+});
+elements.retiredCameraBody.addEventListener("click", event => {
+    const button = event.target.closest("button[data-action]");
+    if (!button) return;
+    const camera = state.retiredCameras.find(item => String(item.id) === button.dataset.id);
+    if (!camera) return;
+    if (button.dataset.action === "history") openHistory(camera.id);
+    if (button.dataset.action === "restore") restoreCamera(camera, button);
 });
 document.querySelectorAll(".close-dialog").forEach(button => {
     button.addEventListener("click", () => button.closest("dialog").close());

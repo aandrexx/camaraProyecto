@@ -10,10 +10,25 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Optional;
 
 public interface CamaraRepository extends JpaRepository<Camara, Long> {
 
-    List<Camara> findByEmpresaId(Long empresaId);
+    List<Camara> findAllByEliminadaFalse();
+
+    List<Camara> findAllByEliminadaTrue();
+
+    Optional<Camara> findByIdAndEliminadaFalse(Long id);
+
+    @Modifying
+    @Transactional
+    @Query("update Camara c set c.eliminada = true where c.id = :id and c.eliminada = false")
+    int marcarComoEliminada(@Param("id") Long id);
+
+    @Modifying
+    @Transactional
+    @Query("update Camara c set c.eliminada = false where c.id = :id and c.eliminada = true")
+    int restaurar(@Param("id") Long id);
 
     @Modifying
     @Transactional

@@ -4,84 +4,93 @@ import com.losMatus.estadoCamaras.dto.CamaraRequestDTO;
 import com.losMatus.estadoCamaras.dto.CamaraResponseDTO;
 import com.losMatus.estadoCamaras.dto.HistorialEstadoResponseDTO;
 import com.losMatus.estadoCamaras.entity.Camara;
-import com.losMatus.estadoCamaras.entity.Empresa;
-import com.losMatus.estadoCamaras.entity.HistorialEstado;
-import com.losMatus.estadoCamaras.enums.EstadoCamara;
 import com.losMatus.estadoCamaras.mapper.CamaraMapper;
-import com.losMatus.estadoCamaras.mapper.HistorialEstadoMapper;
 import com.losMatus.estadoCamaras.repository.CamaraRepository;
-import com.losMatus.estadoCamaras.repository.EmpresaRepository;
 import com.losMatus.estadoCamaras.repository.HistorialEstadoRepository;
-import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
 @Service
-@RequiredArgsConstructor
 public class CamaraService {
 
     private final CamaraRepository camaraRepository;
     private final CamaraMapper camaraMapper;
-    private final EmpresaRepository empresaRepository;
     private final HistorialEstadoRepository historialEstadoRepository;
-    private final HistorialEstadoMapper historialEstadoMapper;
 
-    public List<CamaraResponseDTO> listarPorEmpresa(Long empresaId) {
-        return camaraRepository.findByEmpresaId(empresaId)
-                .stream()
-                .map(this::toDTOConMacCoincide)
+    public CamaraService(CamaraRepository camaraRepository, CamaraMapper camaraMapper, HistorialEstadoRepository historialEstadoRepository) {
+        this.camaraRepository = camaraRepository;
+        this.camaraMapper = camaraMapper;
+        this.historialEstadoRepository = historialEstadoRepository;
+    }
+
+    public CamaraResponseDTO crear(CamaraRequestDTO request) {
+        Camara camara = camaraMapper.toEntity(request);
+        camara.setMacEsperada(normalizarMac(camara.getMacEsperada()));
+        return camaraMapper.toDTO(camaraRepository.save(camara));
+    }
+
+    public List<CamaraResponseDTO> listar() {
+        return camaraRepository.findAllByEliminadaFalse().stream()
+                .map(camaraMapper::toDTO)
                 .toList();
     }
 
-    public CamaraResponseDTO save(CamaraRequestDTO camaraRequestDTO) {
-        Empresa empresa = empresaRepository.findById(camaraRequestDTO.empresaId())
-                .orElseThrow(() -> new RuntimeException("Empresa no encontrada"));
-        Camara camara = camaraMapper.toEntity(camaraRequestDTO);
-        camara.setEmpresa(empresa);
-        camara.setEstado(EstadoCamara.DESCONOCIDO);
-
-        camara.setMacEsperada(normalizarMac(camaraRequestDTO.macEsperada()));
-
-        Camara guardada = camaraRepository.save(camara);
-        return camaraMapper.toDTO(guardada);
-    }
-
-    public List<HistorialEstadoResponseDTO> historialDeCamara(Long camaraId) {
-        return historialEstadoRepository.findByCamaraIdOrderByFechaCambioDesc(camaraId)
-                .stream()
-                .map(historialEstado -> historialEstadoMapper.toDTO(historialEstado))
+    public List<CamaraResponseDTO> listarRetiradas() {
+        return camaraRepository.findAllByEliminadaTrue().stream()
+                .map(camaraMapper::toDTO)
                 .toList();
     }
 
-    private CamaraResponseDTO toDTOConMacCoincide(Camara camara) {
-        CamaraResponseDTO dto = camaraMapper.toDTO(camara);
-        return dto.toBuilder()
-                .macCoincide(calcularMacCoincide(camara))
-                .build();
+    public CamaraResponseDTO obtener(Long id) {
+        return camaraMapper.toDTO(buscarActiva(id));
     }
 
-    private Boolean calcularMacCoincide(Camara camara) {
-        if (camara.getMacEsperada() == null || camara.getUltimaMacDetectada() == null) {
-            return null;
+    public CamaraResponseDTO actualizar(Long id, CamaraRequestDTO request) {
+        var camara = buscarActiva(id);
+        camaraMapper.actualizar(request, camara);
+        camara.setMacEsperada(normalizarMac(camara.getMacEsperada()));
+        return camaraMapper.toDTO(camaraRepository.save(camara));
+    }
+
+    public void eliminar(Long id) {
+        buscarActiva(id);
+        if (camaraRepository.marcarComoEliminada(id) == 0) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Cámara no encontrada con id " + id);
         }
-        return camara.getUltimaMacDetectada().equalsIgnoreCase(camara.getMacEsperada());
     }
 
-    public CamaraResponseDTO actualizar(Long id, CamaraRequestDTO dto) {
-        Camara camara = camaraRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Cámara no encontrada"));
-
-        camara.setNombre(dto.nombre());
-        camara.setIp(dto.ip());
-        camara.setPuerto(dto.puerto());
-        camara.setUbicacion(dto.ubicacion());
-        camara.setMacEsperada(normalizarMac(dto.macEsperada()));
-
-        Camara actualizada = camaraRepository.save(camara);
-        return camaraMapper.toDTO(actualizada);
+    public CamaraResponseDTO restaurar(Long id) {
+        buscar(id);
+        if (camaraRepository.restaurar(id) == 0) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "La cámara ya está activa");
+        }
+        return camaraMapper.toDTO(buscarActiva(id));
     }
+
+    public List<HistorialEstadoResponseDTO> historial(Long id) {
+        buscar(id);
+        return historialEstadoRepository.findByCamaraIdOrderByFechaCambioDesc(id).stream()
+                .map(camaraMapper::toHistorialDTO)
+                .toList();
+    }
+
+    private Camara buscar(Long id) {
+        return camaraRepository.findById(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Cámara no encontrada con id " + id));
+    }
+
+    private Camara buscarActiva(Long id) {
+        return camaraRepository.findByIdAndEliminadaFalse(id)
+                .orElseThrow(() -> new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Cámara no encontrada con id " + id));
+    }
+
+    // Windows devuelve aa-bb-cc, Linux aa:bb:cc: se guarda siempre AA:BB:CC
     private String normalizarMac(String mac) {
-        return (mac == null || mac.isBlank()) ? null : MacResolver.normalizar(mac.trim());
+        return mac == null ? null : mac.replace("-", ":").toUpperCase();
     }
 }
