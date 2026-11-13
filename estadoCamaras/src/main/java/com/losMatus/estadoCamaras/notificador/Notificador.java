@@ -5,5 +5,5 @@ import com.losMatus.estadoCamaras.enums.EstadoCamara;
 
 public interface Notificador {
 
-    void notificar(Camara camara, EstadoCamara anterior, EstadoCamara nuevo);
+    void notificar(Camara camara, EstadoCamara anterior, EstadoCamara nuevo, String motivo);
 }
