@@ -53,6 +53,7 @@ button { cursor: pointer; }
 .breadcrumb strong { color: #485468; font-weight: 600; }
 .topbar-actions { display: flex; align-items: center; gap: 9px; }
 .last-updated { margin-right: 5px; color: #8b95a4; font-size: 10px; }
+.session-identity { color: #647086; font-size: 10px; }
 .button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 35px; padding: 0 13px; border: 1px solid transparent; border-radius: 6px; font-size: 11px; font-weight: 650; transition: background .15s, border-color .15s, transform .15s; }
 .button:active { transform: translateY(1px); }
 .button-primary { color: #fff; background: var(--blue); box-shadow: 0 2px 5px #315ce826; }
@@ -202,6 +203,7 @@ tbody tr:hover { background: #fcfdff; }
     .breadcrumb { align-self: center; }
     .topbar-actions { gap: 5px; }
     .topbar-actions .button { min-height: 32px; padding: 0 8px; font-size: 10px; }
+    .session-identity { display: none; }
     #refresh-button { width: 34px; padding: 0; font-size: 0; }
     #refresh-button .refresh-icon { font-size: 17px; }
     .page-heading { display: block; padding: 24px 0 17px; }

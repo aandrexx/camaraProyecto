@@ -6,10 +6,54 @@
     <meta name="theme-color" content="#f5f7fb">
     <title>EstadoCámaras | Monitoreo</title>
     <link rel="stylesheet" href="/css/styles.css">
-    <script src="/js/app.js" defer></script>
+    <link rel="stylesheet" href="/css/auth.css">
+    <script type="module" src="/js/app.js"></script>
 </head>
 <body>
-<div class="app-shell">
+<section class="auth-screen" id="auth-screen">
+    <a class="brand auth-brand" href="/" aria-label="EstadoCámaras inicio">
+        <span class="brand-mark">EC</span>
+        <span class="brand-copy">
+            <strong>EstadoCámaras</strong>
+            <small>Centro de monitoreo</small>
+        </span>
+    </a>
+    <div class="auth-card">
+        <p class="eyebrow">ACCESO SEGURO</p>
+        <h1 id="auth-title">Inicia sesión</h1>
+        <p class="auth-description" id="auth-description">Accede al panel de monitoreo de cámaras.</p>
+        <div class="auth-tabs" role="tablist" aria-label="Acceso a la cuenta">
+            <button class="auth-tab active" id="login-mode-button" type="button" role="tab" aria-selected="true">Iniciar sesión</button>
+            <button class="auth-tab" id="register-mode-button" type="button" role="tab" aria-selected="false">Crear cuenta</button>
+        </div>
+        <form id="login-form">
+            <label class="form-field">Correo electrónico
+                <input name="email" type="email" autocomplete="username" maxlength="160" placeholder="tu@correo.com" required>
+            </label>
+            <label class="form-field">Contraseña
+                <input name="password" type="password" autocomplete="current-password" required>
+            </label>
+            <button class="button button-primary auth-submit" type="submit" id="login-submit">Iniciar sesión</button>
+        </form>
+        <form id="register-form" hidden>
+            <label class="form-field">Correo electrónico
+                <input name="email" type="email" autocomplete="email" maxlength="160" placeholder="tu@correo.com" required>
+            </label>
+            <label class="form-field">Contraseña
+                <input name="password" type="password" autocomplete="new-password" required>
+            </label>
+            <label class="form-field">Confirmar contraseña
+                <input name="confirmPassword" type="password" autocomplete="new-password" required>
+            </label>
+            <button class="button button-primary auth-submit" type="submit" id="register-submit">Crear cuenta</button>
+            <p class="auth-note">Las cuentas nuevas se crean con permisos de usuario.</p>
+        </form>
+        <div class="auth-message" id="auth-message" role="alert" hidden></div>
+    </div>
+    <p class="auth-footer">EstadoCámaras <span>•</span> Monitoreo IP / MAC</p>
+</section>
+
+<div class="app-shell" id="app-shell" hidden>
     <aside class="sidebar">
         <a class="brand" href="/" aria-label="EstadoCámaras inicio">
             <span class="brand-mark">EC</span>
@@ -37,11 +81,13 @@
         <header class="topbar">
             <div class="breadcrumb">Monitoreo <span>/</span> <strong>Panel general</strong></div>
             <div class="topbar-actions">
+                <span class="session-identity" id="session-identity"></span>
                 <span class="last-updated" id="last-updated">Sin actualizar</span>
                 <button class="button button-secondary" id="refresh-button" type="button">
                     <span class="refresh-icon">↻</span> Actualizar
                 </button>
                 <button class="button button-primary" id="add-camera-button" type="button">＋ Nueva cámara</button>
+                <button class="button button-secondary" id="logout-button" type="button">Salir</button>
             </div>
         </header>
 
@@ -178,8 +224,8 @@
                        title="Ingresa una dirección IPv4 válida, por ejemplo 192.168.1.20"
                        placeholder="192.168.1.20" required>
             </label>
-            <label class="form-field">Puerto TCP <span class="required">*</span>
-                <input name="puerto" type="number" min="1" max="65535" placeholder="80" required>
+            <label class="form-field">Puerto TCP
+                <input name="puerto" type="number" min="1" max="65535" placeholder="80">
             </label>
             <label class="form-field full-width">Ubicación
                 <input name="ubicacion" type="text" maxlength="150" placeholder="Ej. Pasillo norte">

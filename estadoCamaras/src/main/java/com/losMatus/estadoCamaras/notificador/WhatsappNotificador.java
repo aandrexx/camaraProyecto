@@ -35,7 +35,6 @@ public class WhatsappNotificador implements Notificador{
     @Value("${notificaciones.whatsapp.api-version}")
     private String apiVersion;
 
-    //prueba con helloworld
     @Value("${notificaciones.whatsapp.idioma:es}")
     private String idioma;
 
@@ -49,44 +48,6 @@ public class WhatsappNotificador implements Notificador{
                 .build();
     }
 
-    //prueba de mensaje
-    @Override
-    public void notificar(Camara camara, EstadoCamara anterior, EstadoCamara nuevo, String motivo) {
-        Map<String, Object> template = new HashMap<>();
-        template.put("name", plantilla);
-        template.put("language", Map.of("code", idioma));
-
-        // hello_world no lleva parámetros; las plantillas propias sí
-        if (!"hello_world".equals(plantilla)) {
-            template.put("components", List.of(Map.of(
-                    "type", "body",
-                    "parameters", List.of(
-                            parametro(camara.getNombre()),
-                            parametro(camara.getUbicacion()),
-                            parametro(camara.getIp()),
-                            parametro(nuevo.name()),
-                            parametro(motivo)
-                    )
-            )));
-        }
-
-        Map<String, Object> body = Map.of(
-                "messaging_product", "whatsapp",
-                "to", destino,
-                "type", "template",
-                "template", template
-        );
-
-        restClient.post()
-                .uri("/{version}/{phoneId}/messages", apiVersion, phoneNumberId)
-                .header("Authorization", "Bearer " + token)
-                .contentType(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .toBodilessEntity();
-    }
-
-    /*
     @Override
     public void notificar(Camara camara, EstadoCamara anterior, EstadoCamara nuevo, String motivo) {
 
@@ -96,7 +57,7 @@ public class WhatsappNotificador implements Notificador{
                 "type", "template",
                 "template", Map.of(
                         "name", plantilla,
-                        "language", Map.of("code", "es"),
+                        "language", Map.of("code", idioma),
                         "components", List.of(Map.of(
                                 "type", "body",
                                 "parameters", List.of(
@@ -119,12 +80,49 @@ public class WhatsappNotificador implements Notificador{
                 .toBodilessEntity();
     }
 
-     */
-
     // Los parámetros de una plantilla no pueden ir vacíos ni tener saltos de línea
     private Map<String, String> parametro(String valor) {
         String limpio = (valor == null || valor.isBlank()) ? "-" : valor.replaceAll("\\s+", " ").trim();
         return Map.of("type", "text", "text", limpio);
     }
+
+
+
+//    //prueba de mensaje
+//    @Override
+//    public void notificar(Camara camara, EstadoCamara anterior, EstadoCamara nuevo, String motivo) {
+//        Map<String, Object> template = new HashMap<>();
+//        template.put("name", plantilla);
+//        template.put("language", Map.of("code", idioma));
+//
+//        // hello_world no lleva parámetros; las plantillas propias sí
+//        if (!"hello_world".equals(plantilla)) {
+//            template.put("components", List.of(Map.of(
+//                    "type", "body",
+//                    "parameters", List.of(
+//                            parametro(camara.getNombre()),
+//                            parametro(camara.getUbicacion()),
+//                            parametro(camara.getIp()),
+//                            parametro(nuevo.name()),
+//                            parametro(motivo)
+//                    )
+//            )));
+//        }
+//
+//        Map<String, Object> body = Map.of(
+//                "messaging_product", "whatsapp",
+//                "to", destino,
+//                "type", "template",
+//                "template", template
+//        );
+//
+//        restClient.post()
+//                .uri("/{version}/{phoneId}/messages", apiVersion, phoneNumberId)
+//                .header("Authorization", "Bearer " + token)
+//                .contentType(MediaType.APPLICATION_JSON)
+//                .body(body)
+//                .retrieve()
+//                .toBodilessEntity();
+//    }
 
 }

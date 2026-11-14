@@ -12,7 +12,6 @@ public record CamaraRequestDTO(
                 message = "La IP debe ser una IPv4 válida")
         String ip,
 
-        @NotNull(message = "El puerto es obligatorio")
         @Min(value = 1, message = "El puerto mínimo es 1")
         @Max(value = 65535, message = "El puerto máximo es 65535")
         Integer puerto,
