@@ -25,7 +25,13 @@ Sistema web para administrar y monitorear cámaras IP. El servidor comprueba per
 
 ## Configuración
 
-La configuración se define con variables de entorno. El archivo [`estadoCamaras/.env.example`](estadoCamaras/.env.example) es una plantilla con valores de ejemplo, no un archivo de configuración que la aplicación cargue por sí sola. **Spring Boot no lee automáticamente `.env`**: define las variables en el entorno del proceso, en el servicio que ejecuta el JAR o en la configuración de ejecución del IDE.
+La configuración sensible se define en un archivo `.env`. El repositorio incluye [`estadoCamaras/.env.example`](estadoCamaras/.env.example) como plantilla, con los nombres de las variables y sin valores reales.
+
+La aplicación lee el archivo `.env` de la carpeta desde la que se ejecuta (mediante `spring.config.import` en `application.properties`). Si una variable también está definida en el entorno del sistema, esa tiene prioridad sobre el `.env`.
+
+1. Copia `.env.example` a `.env`, en la misma carpeta desde la que ejecutarás el JAR.
+2. Completa los valores reales de esa instalación.
+3. **Nunca subas el `.env` al repositorio** (ya está en `.gitignore`).
 
 ```dotenv
 # Base de datos
@@ -36,29 +42,22 @@ DB_PASSWORD=reemplazar
 # Seguridad
 JWT_SECRET=reemplazar
 
-# Canal opcional: whatsapp (predeterminado), telegram o consola
-NOTIFICACIONES_CANAL=whatsapp
-
-# Credenciales del canal elegido
+# WhatsApp
 WHATSAPP_TOKEN=reemplazar
 WHATSAPP_PHONE_NUMBER_ID=reemplazar
-TELEGRAM_TOKEN=reemplazar
-TELEGRAM_CHAT_ID=reemplazar
 ```
+
+Formato: una variable por línea, sin espacios ni comillas alrededor del `=`.
 
 | Variable | Descripción |
 |---|---|
-| `DB_URL` | URL JDBC de MySQL. El nombre de la base debe existir. |
+| `DB_URL` | URL JDBC de MySQL. La base de datos debe existir. |
 | `DB_USERNAME` / `DB_PASSWORD` | Credenciales de MySQL. |
-| `JWT_SECRET` | Secreto para firmar los tokens; usa al menos 32 bytes aleatorios. **Debe ser distinto en cada instalación y mantenerse privado.** |
-| `WHATSAPP_TOKEN` | Token de acceso de la API de WhatsApp con los permisos requeridos y una vigencia controlada según la configuración de Meta. |
+| `JWT_SECRET` | Clave para firmar los tokens. Mínimo 32 caracteres. **Distinta en cada instalación.** |
+| `WHATSAPP_TOKEN` | Token de acceso de la API de WhatsApp (se recomienda el token permanente de un usuario del sistema). |
 | `WHATSAPP_PHONE_NUMBER_ID` | ID del número emisor en Meta. |
-| `NOTIFICACIONES_CANAL` | `whatsapp`, `telegram` o `consola`; si se omite, el valor predeterminado es `whatsapp`. |
-| `TELEGRAM_TOKEN` / `TELEGRAM_CHAT_ID` | Credenciales requeridas si se selecciona Telegram. |
 
-Los valores reales deben configurarse en el entorno donde se inicia la app. No subas secretos, archivos `.env` ni scripts de arranque con credenciales al repositorio.
-
-Valores actuales en `application.properties`: plantilla de WhatsApp `alerta_camara`, idioma `es`, API `v25.0` y expiración del JWT de 24 horas.
+Valores fijos (en `application.properties`): plantilla `alerta_camara`, idioma `es` y expiración del JWT de 24 horas.
 
 ## Generar un JWT_SECRET
 
@@ -129,25 +128,27 @@ Este procedimiento describe la ejecución directa del JAR en Windows; no hay una
    ```
 
 3. **Copiar el `.jar`** a una carpeta, por ejemplo `C:\monitoreo\`.
-4. **Crear el archivo de arranque** `C:\monitoreo\iniciar.bat` con los datos reales de ese servidor:
+4. **Crear el archivo `.env`** en esa misma carpeta, copiando `.env.example` y completando los valores de ese servidor:
 
-   ```bat
-   @echo off
-   cd /d C:\monitoreo
-   set "DB_URL=jdbc:mysql://localhost:3306/estado_camaras"
-   set "DB_USERNAME=monitoreo"
-   set "DB_PASSWORD=REEMPLAZAR"
-   set "JWT_SECRET=REEMPLAZAR"
-   set "NOTIFICACIONES_CANAL=whatsapp"
-   set "WHATSAPP_TOKEN=REEMPLAZAR"
-   set "WHATSAPP_PHONE_NUMBER_ID=REEMPLAZAR"
+   ```dotenv
+   DB_URL=jdbc:mysql://localhost:3306/estado_camaras
+   DB_USERNAME=monitoreo
+   DB_PASSWORD=REEMPLAZAR
+   JWT_SECRET=REEMPLAZAR
+   WHATSAPP_TOKEN=REEMPLAZAR
+   WHATSAPP_PHONE_NUMBER_ID=REEMPLAZAR
+   ```
+
+   El programa lee el `.env` de la carpeta desde la que se ejecuta, así que el `.jar` debe lanzarse desde `C:\monitoreo\`. Sin espacios ni comillas alrededor del `=`. El archivo contiene secretos: restríngele el acceso en Windows y no lo subas al repositorio. Genera un `JWT_SECRET` nuevo para cada instalación.
+
+5. **Probar** ejecutando desde esa carpeta y revisando que la aplicación arranque sin errores:
+
+   ```powershell
+   cd C:\monitoreo
    java -jar estadoCamaras-0.0.1-SNAPSHOT.jar
    ```
 
-   Sustituye todos los valores de ejemplo. Este archivo contiene secretos: restríngele el acceso en Windows y no lo subas al repositorio. Un `.env` no se carga automáticamente con este procedimiento.
-
-5. **Probar** ejecutando `iniciar.bat` y revisando que la aplicación arranque sin errores.
-6. **Configurar inicio y recuperación del servicio** con una herramienta aprobada por tu organización. Si usas NSSM o el Programador de tareas, configura reinicio tras fallos, cuenta de servicio con permisos mínimos y acceso restringido a los secretos.
+6. **Configurar inicio y recuperación del servicio** con NSSM o el Programador de tareas, indicando `C:\monitoreo\` como carpeta de trabajo (así encuentra el `.env`). Configura reinicio tras fallos, una cuenta de servicio con permisos mínimos y acceso restringido a los secretos.
 7. **Firewall:** abrir el puerto de la API (por defecto `8080`) si se consultará desde otros equipos.
 
 ## Primer uso
