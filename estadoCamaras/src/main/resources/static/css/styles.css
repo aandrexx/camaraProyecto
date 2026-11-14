@@ -185,9 +185,9 @@ tbody tr:hover { background: #fcfdff; }
 @media (max-width: 800px) {
     .sidebar { width: 62px; align-items: center; padding: 18px 8px 14px; }
     .brand { padding: 2px 0 28px; }
-    .brand-copy, .sidebar-label, .workspace-card, .nav-link:not(.active), .nav-link.active { font-size: 0; }
-    .brand-copy, .workspace-card, .sidebar-label, .sidebar-footnote, .nav-link:not(.active) { display: none; }
-    .nav-link.active { justify-content: center; width: 42px; height: 42px; padding: 0; font-size: 0; }
+    .brand-copy, .sidebar-label, .workspace-card, .nav-link { font-size: 0; }
+    .brand-copy, .workspace-card, .sidebar-label, .sidebar-footnote { display: none; }
+    .nav-link { justify-content: center; width: 42px; height: 42px; padding: 0; }
     .nav-icon { font-size: 17px; }
     .nav-count { display: none; }
     .sidebar-bottom { width: 100%; display: flex; justify-content: center; }

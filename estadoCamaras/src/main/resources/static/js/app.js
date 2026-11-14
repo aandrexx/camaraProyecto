@@ -1,4 +1,5 @@
 import { getSession, initializeAuth, request } from "./auth.js";
+import { setTechniciansEnabled } from "./technicians.js";
 
 const API = {
     cameras: "/api/camaras",
@@ -358,6 +359,7 @@ document.querySelectorAll("dialog").forEach(dialog => {
 });
 
 initializeAuth(session => {
+    setTechniciansEnabled(session?.rol === "ADMIN");
     if (!session) {
         state.cameras = [];
         state.retiredCameras = [];
