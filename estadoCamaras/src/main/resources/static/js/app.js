@@ -1,3 +1,5 @@
+import { getSession, initializeAuth, request } from "./auth.js";
+
 const API = {
     cameras: "/api/camaras",
     retiredCameras: "/api/camaras/retiradas"
@@ -26,32 +28,6 @@ const elements = {
     historyDialog: document.querySelector("#history-dialog"),
     historyContent: document.querySelector("#history-content")
 };
-
-async function request(url, options = {}) {
-    const response = await fetch(url, {
-        ...options,
-        headers: {
-            ...(options.body ? { "Content-Type": "application/json" } : {}),
-            ...options.headers
-        }
-    });
-    const responseText = await response.text();
-    let data = null;
-    if (responseText) {
-        try {
-            data = JSON.parse(responseText);
-        } catch {
-            data = responseText;
-        }
-    }
-    if (!response.ok) {
-        const detail = typeof data === "string"
-            ? (/^\s*<(?:!doctype|html)/i.test(data) ? "" : data)
-            : data?.message || data?.error || "";
-        throw new Error(detail || `Error HTTP ${response.status}`);
-    }
-    return data;
-}
 
 function showError(message) {
     elements.errorBanner.textContent = message;
@@ -111,6 +87,10 @@ function statusDetails(status) {
     return { text: "Desconocida", className: "status-unknown" };
 }
 
+function isAdmin() {
+    return getSession()?.rol === "ADMIN";
+}
+
 function renderCameras() {
     const query = document.querySelector("#search-input").value.trim().toLocaleLowerCase("es");
     const statusFilter = document.querySelector("#status-filter").value;
@@ -150,7 +130,7 @@ function renderCameras() {
         elements.emptyDescription.textContent = hasSearch || hasFilter
             ? "Prueba con otro nombre, dirección IP o ubicación."
             : state.cameras.length === 0 ? "Registra una cámara para comenzar a monitorear la red." : "No hay cámaras para mostrar.";
-        document.querySelector("#empty-add-camera").hidden = hasSearch || hasFilter;
+        document.querySelector("#empty-add-camera").hidden = hasSearch || hasFilter || !isAdmin();
         return;
     }
 
@@ -168,6 +148,10 @@ function renderCameras() {
         const detectedMac = camera.ultimaMacDetectada
             ? `<span class="mac-address">${escapeHtml(camera.ultimaMacDetectada)}</span>`
             : '<span class="mac-address empty">Sin detectar</span>';
+        const adminActions = isAdmin()
+            ? `<button class="row-action" type="button" data-action="edit" data-id="${escapeHtml(camera.id)}" title="Editar cámara" aria-label="Editar cámara">✎</button>
+                <button class="row-action row-action-danger" type="button" data-action="delete" data-id="${escapeHtml(camera.id)}" title="Eliminar cámara" aria-label="Eliminar cámara">×</button>`
+            : "";
         const row = document.createElement("tr");
         row.innerHTML = `
             <td><div class="camera-name"><strong>${escapeHtml(camera.nombre)}</strong><span>${escapeHtml(camera.ubicacion || "Ubicación no definida")}</span></div></td>
@@ -178,8 +162,7 @@ function renderCameras() {
             <td><span class="timestamp">${escapeHtml(formatDate(camera.ultimaVerificacion))}</span></td>
             <td><div class="row-actions">
                 <button class="row-action" type="button" data-action="history" data-id="${escapeHtml(camera.id)}" title="Ver historial" aria-label="Ver historial">◷</button>
-                <button class="row-action" type="button" data-action="edit" data-id="${escapeHtml(camera.id)}" title="Editar cámara" aria-label="Editar cámara">✎</button>
-                <button class="row-action row-action-danger" type="button" data-action="delete" data-id="${escapeHtml(camera.id)}" title="Eliminar cámara" aria-label="Eliminar cámara">×</button>
+                ${adminActions}
             </div></td>`;
         elements.cameraBody.append(row);
     });
@@ -194,6 +177,9 @@ function renderRetiredCameras() {
     elements.retiredSection.classList.toggle("has-retired-cameras", count > 0);
 
     state.retiredCameras.forEach(camera => {
+        const restoreAction = isAdmin()
+            ? `<button class="button button-restore" type="button" data-action="restore" data-id="${escapeHtml(camera.id)}">Restaurar</button>`
+            : "";
         const row = document.createElement("tr");
         row.innerHTML = `
             <td><div class="camera-name"><strong>${escapeHtml(camera.nombre)}</strong><span>${escapeHtml(camera.ubicacion || "Ubicación no definida")}</span></div></td>
@@ -201,7 +187,7 @@ function renderRetiredCameras() {
             <td><span class="timestamp">${escapeHtml(formatDate(camera.ultimaVerificacion))}</span></td>
             <td><div class="row-actions">
                 <button class="row-action" type="button" data-action="history" data-id="${escapeHtml(camera.id)}" title="Ver historial" aria-label="Ver historial">◷</button>
-                <button class="button button-restore" type="button" data-action="restore" data-id="${escapeHtml(camera.id)}">Restaurar</button>
+                ${restoreAction}
             </div></td>`;
         elements.retiredCameraBody.append(row);
     });
@@ -214,6 +200,7 @@ function updateRefreshTime() {
 }
 
 async function refreshDashboard() {
+    if (!getSession()) return;
     clearError();
     const refreshButton = document.querySelector("#refresh-button");
     refreshButton.disabled = true;
@@ -370,5 +357,23 @@ document.querySelectorAll("dialog").forEach(dialog => {
     });
 });
 
-refreshDashboard();
-window.setInterval(refreshDashboard, 60_000);
+initializeAuth(session => {
+    if (!session) {
+        state.cameras = [];
+        state.retiredCameras = [];
+        clearError();
+        setConnection(false);
+        elements.cameraBody.replaceChildren();
+        renderCameras();
+        renderRetiredCameras();
+        return;
+    }
+
+    renderCameras();
+    renderRetiredCameras();
+    void refreshDashboard();
+});
+
+window.setInterval(() => {
+    if (getSession()) void refreshDashboard();
+}, 60_000);

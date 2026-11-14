@@ -12,6 +12,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Service
@@ -24,6 +26,9 @@ public class MonitoreoService {
     private final MacVerificador macVerificador;
     private final EvaluarEstado evaluarEstado;
     private final Notificador notificador;
+
+    //para verificar camaras inactivas guardadas
+    private final Set<Long> verificadasDesdeArranque = ConcurrentHashMap.newKeySet();
 
     private static final int REINTENTOS = 3;
     private static final long ESPERA_REINTENTO_MS = 3000;
@@ -83,7 +88,9 @@ public class MonitoreoService {
 
         // 4. Historial: solo si el estado cambió
         boolean cambio = nuevo != anterior;
+        String motivoCambio = null;
         if (cambio) {
+            motivoCambio = describirCambio(camara, nuevo, chequeo);
             camara.setEstado(nuevo);
             historialEstadoRepository.save(HistorialEstado.builder()
                     .camara(camara)
@@ -92,22 +99,28 @@ public class MonitoreoService {
                     .tipoEvento(nuevo == EstadoCamara.ALERTA
                             ? TipoEvento.ALERTA_MAC
                             : TipoEvento.CAMBIO_ESTADO)
-                    .motivo(describirCambio(camara, nuevo, chequeo))
+                    .motivo(motivoCambio)
                     .fechaCambio(LocalDateTime.now())
                     .build());
         }
 
         camaraRepository.save(camara);
 
-        // 5. Notificar: no avisar en la primera revisión que sale bien
-        if (cambio && !(anterior == EstadoCamara.DESCONOCIDO && nuevo == EstadoCamara.ACTIVA)) {
-            notificar(camara, anterior, nuevo);
+        // 5. Notificar: solo cuando la cámara entra o sale de INACTIVA o ALERTA
+        boolean primeraVerificacion = verificadasDesdeArranque.add(camara.getId());
+
+        boolean avisoPorCambio = cambio && (esAvisable(nuevo) || esAvisable(anterior));
+        boolean avisoAlArrancar = primeraVerificacion && !cambio && esAvisable(nuevo);
+
+        if (avisoPorCambio || avisoAlArrancar) {
+            String motivo = cambio ? motivoCambio : describirCambio(camara, nuevo, chequeo);
+            notificar(camara, anterior, nuevo, motivo);
         }
     }
 
-    private void notificar(Camara camara, EstadoCamara anterior, EstadoCamara nuevo) {
+    private void notificar(Camara camara, EstadoCamara anterior, EstadoCamara nuevo, String motivo) {
         try {
-            notificador.notificar(camara, anterior, nuevo);
+            notificador.notificar(camara, anterior, nuevo, motivo);
         } catch (Exception e) {
             // un fallo al notificar no debe romper el monitoreo
             log.error("No se pudo enviar la notificación de la cámara {}: {}",
@@ -124,6 +137,10 @@ public class MonitoreoService {
         ResultadoCheck mac = responde ? macVerificador.verificar(camara) : null;
 
         return new Chequeo(evaluarEstado.evaluar(ping, tcp, mac), ping, tcp, mac);
+    }
+
+    private boolean esAvisable(EstadoCamara estado) {
+        return estado == EstadoCamara.INACTIVA || estado == EstadoCamara.ALERTA;
     }
 
     private String describirCambio(Camara camara, EstadoCamara estado, Chequeo chequeo) {

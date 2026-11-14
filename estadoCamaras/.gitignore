@@ -33,3 +33,4 @@ build/
 
 # Local database credentials
 .env
+!.env.example

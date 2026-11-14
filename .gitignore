@@ -10,6 +10,7 @@ estadoCamaras/target/
 
 # Variables de entorno
 .env
+!.env.example
 
 # Configuración local
 application-local.properties
