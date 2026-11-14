@@ -30,8 +30,8 @@ class ApiExceptionHandlerTest {
         var response = handler.handleValidation(exception);
 
         assertEquals(HttpStatus.BAD_REQUEST, response.getStatusCode());
-        assertEquals("nombre", response.getBody().errors().getFirst().field());
-        assertEquals("El nombre es obligatorio", response.getBody().errors().getFirst().message());
+        assertEquals("nombre", response.getBody().errors().get(0).field());
+        assertEquals("El nombre es obligatorio", response.getBody().errors().get(0).message());
     }
 
     @Test
