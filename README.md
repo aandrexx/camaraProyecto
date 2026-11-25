@@ -151,6 +151,18 @@ Este procedimiento describe la ejecución directa del JAR en Windows; no hay una
 6. **Configurar inicio y recuperación del servicio** con NSSM o el Programador de tareas, indicando `C:\monitoreo\` como carpeta de trabajo (así encuentra el `.env`). Configura reinicio tras fallos, una cuenta de servicio con permisos mínimos y acceso restringido a los secretos.
 7. **Firewall:** abrir el puerto de la API (por defecto `8080`) si se consultará desde otros equipos.
 
+## Frontend (React + Vite)
+
+El panel en React está en [`frontend/`](frontend). Con el backend corriendo en `8080`:
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Abre <http://localhost:5173>. Vite reenvía `/api` y `/auth` al backend, así que no hace falta tocar CORS en desarrollo. Más detalles (build de producción, estructura) en [`frontend/README.md`](frontend/README.md).
+
 ## Primer uso
 
 1. Crea una cuenta desde el formulario de registro; el endpoint público asigna siempre el rol `USER`.

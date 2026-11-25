@@ -1,0 +1,20 @@
+.section-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
+.section-actions .search-box { width: min(250px, 30vw); }
+.section-actions .filter-box { width: 115px; }
+.technicians-section .status-badge { min-width: 77px; justify-content: center; }
+.technician-active { color: #188252; background: #eaf7f0; }
+.technician-inactive { color: #778396; background: #f0f2f6; }
+.technicians-error { margin: 0 16px 12px; }
+
+@media (max-width: 800px) {
+    .section-actions { flex-wrap: wrap; }
+    .section-actions .search-box { width: 100%; }
+}
+
+@media (max-width: 560px) {
+    .section-actions { display: grid; grid-template-columns: 1fr 1fr; }
+    .section-actions .search-box { grid-column: 1 / -1; width: 100%; }
+    .section-actions .filter-box { width: 100%; }
+    .section-actions #refresh-technicians-button { min-width: 35px; }
+    .section-actions #add-technician-button { grid-column: 1 / -1; }
+}
